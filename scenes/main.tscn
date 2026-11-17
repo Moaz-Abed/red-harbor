@@ -1,0 +1,104 @@
+[gd_scene load_steps=7 format=3]
+
+[ext_resource type="PackedScene" path="res://scenes/player.tscn" id="1"]
+[ext_resource type="PackedScene" path="res://scenes/hud.tscn" id="2"]
+
+[sub_resource type="RectangleShape2D" id="1"]
+size = Vector2(640, 16)
+
+[sub_resource type="RectangleShape2D" id="2"]
+size = Vector2(16, 360)
+
+[sub_resource type="RectangleShape2D" id="3"]
+size = Vector2(96, 112)
+
+[sub_resource type="RectangleShape2D" id="4"]
+size = Vector2(112, 80)
+
+[node name="Main" type="Node2D"]
+
+[node name="Arena" type="Node2D" parent="."]
+
+[node name="TopWall" type="StaticBody2D" parent="Arena"]
+position = Vector2(320, 8)
+collision_layer = 2
+collision_mask = 0
+
+[node name="Visual" type="Polygon2D" parent="Arena/TopWall"]
+color = Color(0.157, 0.169, 0.259, 1)
+polygon = PackedVector2Array(-320, -8, 320, -8, 320, 8, -320, 8)
+
+[node name="Collision" type="CollisionShape2D" parent="Arena/TopWall"]
+shape = SubResource("1")
+
+[node name="BottomWall" type="StaticBody2D" parent="Arena"]
+position = Vector2(320, 352)
+collision_layer = 2
+collision_mask = 0
+
+[node name="Visual" type="Polygon2D" parent="Arena/BottomWall"]
+color = Color(0.157, 0.169, 0.259, 1)
+polygon = PackedVector2Array(-320, -8, 320, -8, 320, 8, -320, 8)
+
+[node name="Collision" type="CollisionShape2D" parent="Arena/BottomWall"]
+shape = SubResource("1")
+
+[node name="LeftWall" type="StaticBody2D" parent="Arena"]
+position = Vector2(8, 180)
+collision_layer = 2
+collision_mask = 0
+
+[node name="Visual" type="Polygon2D" parent="Arena/LeftWall"]
+color = Color(0.157, 0.169, 0.259, 1)
+polygon = PackedVector2Array(-8, -180, 8, -180, 8, 180, -8, 180)
+
+[node name="Collision" type="CollisionShape2D" parent="Arena/LeftWall"]
+shape = SubResource("2")
+
+[node name="RightWall" type="StaticBody2D" parent="Arena"]
+position = Vector2(632, 180)
+collision_layer = 2
+collision_mask = 0
+
+[node name="Visual" type="Polygon2D" parent="Arena/RightWall"]
+color = Color(0.157, 0.169, 0.259, 1)
+polygon = PackedVector2Array(-8, -180, 8, -180, 8, 180, -8, 180)
+
+[node name="Collision" type="CollisionShape2D" parent="Arena/RightWall"]
+shape = SubResource("2")
+
+[node name="BlockA" type="StaticBody2D" parent="Arena"]
+position = Vector2(190, 150)
+collision_layer = 2
+collision_mask = 0
+
+[node name="Visual" type="Polygon2D" parent="Arena/BlockA"]
+color = Color(0.212, 0.228, 0.333, 1)
+polygon = PackedVector2Array(-48, -56, 48, -56, 48, 56, -48, 56)
+
+[node name="Collision" type="CollisionShape2D" parent="Arena/BlockA"]
+shape = SubResource("3")
+
+[node name="BlockB" type="StaticBody2D" parent="Arena"]
+position = Vector2(460, 240)
+collision_layer = 2
+collision_mask = 0
+
+[node name="Visual" type="Polygon2D" parent="Arena/BlockB"]
+color = Color(0.212, 0.228, 0.333, 1)
+polygon = PackedVector2Array(-56, -40, 56, -40, 56, 40, -56, 40)
+
+[node name="Collision" type="CollisionShape2D" parent="Arena/BlockB"]
+shape = SubResource("4")
+
+[node name="GoalMarker" type="Node2D" parent="."]
+position = Vector2(560, 72)
+
+[node name="Visual" type="Polygon2D" parent="GoalMarker"]
+color = Color(0.878, 0.643, 0.345, 1)
+polygon = PackedVector2Array(-8, -8, 8, -8, 8, 8, -8, 8)
+
+[node name="Player" parent="." instance=ExtResource("1")]
+position = Vector2(110, 280)
+
+[node name="HudLayer" parent="." instance=ExtResource("2")]

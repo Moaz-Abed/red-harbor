@@ -1,0 +1,17 @@
+# Godot 4 editor cache and per-user settings
+.godot/
+
+# Export build output (uncomment export_presets.cfg line if you want to
+# share export settings across machines instead)
+build/
+dist/
+export_presets.cfg
+
+# OS noise
+.DS_Store
+Thumbs.db
+
+# LibreSprite / Aseprite backup files
+*.ase-bak
+*.bak
+*~

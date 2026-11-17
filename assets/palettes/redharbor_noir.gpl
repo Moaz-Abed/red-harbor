@@ -1,0 +1,12 @@
+GIMP Palette
+Name: Red Harbor Noir
+Columns: 8
+# 7-color starter noir palette. Adjust freely, but keep the rules:
+# red is reserved for state / surveillance elements only (roadmap Sec. 5).
+ 20  18  28	ink
+ 42  40  60	shadow
+ 74  78 105	slate
+122 112 128	fog
+222 214 199	bone
+224 164  88	sodium
+193  41  46	surveillance_red
