@@ -1,7 +1,8 @@
-[gd_scene load_steps=7 format=3]
+[gd_scene load_steps=8 format=3]
 
 [ext_resource type="PackedScene" path="res://scenes/player.tscn" id="1"]
 [ext_resource type="PackedScene" path="res://scenes/hud.tscn" id="2"]
+[ext_resource type="PackedScene" path="res://scenes/guard.tscn" id="3"]
 
 [sub_resource type="RectangleShape2D" id="1"]
 size = Vector2(640, 16)
@@ -100,5 +101,13 @@ polygon = PackedVector2Array(-8, -8, 8, -8, 8, 8, -8, 8)
 
 [node name="Player" parent="." instance=ExtResource("1")]
 position = Vector2(110, 280)
+
+[node name="Guard1" parent="." instance=ExtResource("3")]
+position = Vector2(340, 110)
+patrol_points = PackedVector2Array(340, 110, 560, 110)
+
+[node name="Guard2" parent="." instance=ExtResource("3")]
+position = Vector2(560, 160)
+patrol_points = PackedVector2Array(560, 160, 560, 320)
 
 [node name="HudLayer" parent="." instance=ExtResource("2")]

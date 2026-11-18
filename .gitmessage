@@ -1,0 +1,18 @@
+# <type>(<scope>)<!>: <subject>
+#
+# Subject: imperative mood ("add", not "added"), lowercase, no trailing
+#         period, 72 characters or fewer.
+# Types:  feat  fix  docs  style  refactor  perf  test  build  ci  chore  revert
+# Scopes: player  hud  enemies  level  art  audio  docs  build
+#
+# Examples:
+#   feat(player): add locked-direction dash with 0.35s cooldown
+#   fix(hud): stop mugshot flicker when health changes
+#   chore(art): export 32x32 PI sprite sheet from LibreSprite
+#
+# Body (optional): explain WHY the change was made, wrapped at 72 chars.
+#                  Leave one blank line between subject and body.
+#
+# Footer (optional): issue references and breaking changes.
+#   Closes #12
+#   BREAKING CHANGE: input map changed, remap dash before pulling
