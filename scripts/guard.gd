@@ -51,9 +51,19 @@ const ANIMS := {
 const FRAME_SIZE := 32
 const SHEET := preload("res://assets/sprites/guard_sheet.png")
 
-const CONE_COLOR_CALM := Color(0.478, 0.439, 0.5, 0.16)    # fog, translucent
-const CONE_COLOR_SEEN := Color(0.757, 0.161, 0.18, 0.38)   # surveillance red
-const CONE_COLOR_SEARCH := Color(0.757, 0.161, 0.18, 0.22) # red, dimmer
+# Screen layering contract (z_index): floor tiles sit at 0, the cone paints
+# ABOVE the floor (1), and every actor sprite stands above the light (2).
+# FIX (invisible-cone regression): the cone used z_index = -1, which is
+# GLOBAL - it slid the whole flashlight UNDER the tilemap's z = 0 floor
+# tiles, so the player never saw the thing that was hunting him.
+const Z_CONE := 1
+const Z_ACTOR := 2
+
+# Cone fills tuned to stay READABLE on dark asphalt (the old 0.16-alpha fog
+# cone vanished against the floor even after the z fix).
+const CONE_COLOR_CALM := Color(0.6, 0.56, 0.65, 0.30)      # fog, screen-bright
+const CONE_COLOR_SEEN := Color(0.88, 0.3, 0.26, 0.55)      # alarm red, screen-bright
+const CONE_COLOR_SEARCH := Color(0.88, 0.3, 0.26, 0.35)    # red, dimmer
 
 var _down := false
 var _state := State.PATROL
@@ -75,11 +85,12 @@ func _ready() -> void:
         _sprite = AnimatedSprite2D.new()
         _sprite.sprite_frames = _build_frames()
         _sprite.play("patrol")
+        _sprite.z_index = Z_ACTOR   # body above every cone, incl. its own
         add_child(_sprite)
 
-        # The cone renders BEHIND the guard and everything else on the floor.
+        # The cone renders above the floor but below every actor sprite.
         _cone = Polygon2D.new()
-        _cone.z_index = -1
+        _cone.z_index = Z_CONE
         _cone.color = CONE_COLOR_CALM
         add_child(_cone)
 

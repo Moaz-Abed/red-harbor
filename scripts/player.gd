@@ -59,6 +59,7 @@ const ANIMS := {
 }
 const FRAME_SIZE := 32
 const SHEET := preload("res://assets/sprites/player_sheet.png")
+const Z_ACTOR := 2   # actor layer - see guard.gd for the world z contract
 
 var health := MAX_HEALTH
 var intel := 0
@@ -85,6 +86,7 @@ func _ready() -> void:
         _sprite = AnimatedSprite2D.new()
         _sprite.sprite_frames = _build_frames()
         _sprite.play("idle")
+        _sprite.z_index = Z_ACTOR   # body above cones, floor and pickups
         add_child(_sprite)
 
 

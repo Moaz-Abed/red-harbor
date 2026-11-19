@@ -10,25 +10,34 @@ extends CanvasLayer
 ## while any guard hunts you and SEARCHING (sodium) while one sweeps.
 ## P2 second half: the safehouse door reports through exit_zone.gd and the
 ## prompt line tells you when E will extract you.
+##
+## Legibility contract (P3.1, restored in P3.2): every label is drawn with
+## a bright text fill OVER an ink outline. State colors change through the
+## theme (font_color), NEVER through modulate - modulate tints the outline
+## too and dissolves small text back into the dark HUD. The art-grade
+## fills (#c1292e red, #7a7080 fog) are tuned for big pixel areas, not for
+## 10 px glyphs, so text uses the brightened screen variants below.
 
 const PORTRAIT_SHEET := preload("res://assets/sprites/portrait_sheet.png")
 const FRAME_TEX := preload("res://assets/sprites/hud_frame.png")
 const PIP_EMPTY := preload("res://assets/sprites/hud_pip_empty.png")
 const PIP_FULL := preload("res://assets/sprites/hud_pip_full.png")
 
+const INK := Color("14121c")
+const COLOR_BONE := Color("ded6c7")
+const COLOR_SODIUM := Color("e8b366")   # sodium, screen-bright
+const COLOR_RED := Color("e85145")      # alarm red, screen-bright
+
 const STATE_LABELS := ["CLEAN", "SCRAPED", "BRUISED", "BLEEDING", "CRITICAL", "FLATLINED"]
 const STATE_COLORS := [
-		Color("ded6c7"), Color("ded6c7"), Color("e0a458"),
-		Color("e0a458"), Color("c1292e"), Color("c1292e"),
+		COLOR_BONE, COLOR_BONE, COLOR_SODIUM,
+		COLOR_SODIUM, COLOR_RED, COLOR_RED,
 ]
 const HUD_SCALE := 2.0
 
 # guard.gd Sight enum values (kept as ints - scripts stay decoupled)
 const SIGHT_SEEN := 1
 const SIGHT_SEARCHING := 2
-const COLOR_BONE := Color("ded6c7")
-const COLOR_SODIUM := Color("e0a458")
-const COLOR_RED := Color("c1292e")
 
 var _portrait: TextureRect
 var _status: Label
@@ -61,29 +70,31 @@ func _ready() -> void:
 
 		_status = Label.new()
 		_status.position = Vector2(96, 96)
-		_status.add_theme_font_size_override("font_size", 10)
+		_style_label(_status, 11, STATE_COLORS[0])
 		_status.text = "CLEAN"
-		_status.modulate = STATE_COLORS[0]
 		root.add_child(_status)
 
 		_hint = Label.new()
 		_hint.position = Vector2(12, 336)
-		_hint.add_theme_font_size_override("font_size", 9)
-		_hint.modulate = Color(0.48, 0.44, 0.5)
+		_style_label(_hint, 10, COLOR_BONE)
 		_hint.text = "WASD move - Ctrl/C sneak - Shift/Space dash - F takedown - E extract - H hurt - K heal - R restart"
 		root.add_child(_hint)
 
 		# P2: surveillance line, top center. Hidden until a guard reports.
 		_alert = Label.new()
-		_alert.position = Vector2(280, 8)
-		_alert.add_theme_font_size_override("font_size", 12)
+		_alert.set_anchors_and_offsets_preset(Control.PRESET_TOP_WIDE)
+		_alert.offset_top = 8
+		_alert.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		_style_label(_alert, 14, COLOR_RED, 3)
 		_alert.visible = false
 		root.add_child(_alert)
 
 		# P2 second half: safehouse prompt, above the hint line.
 		_prompt = Label.new()
-		_prompt.position = Vector2(200, 300)
-		_prompt.add_theme_font_size_override("font_size", 10)
+		_prompt.set_anchors_and_offsets_preset(Control.PRESET_TOP_WIDE)
+		_prompt.offset_top = 300
+		_prompt.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		_style_label(_prompt, 11, COLOR_SODIUM)
 		_prompt.visible = false
 		root.add_child(_prompt)
 
@@ -106,6 +117,17 @@ func _ready() -> void:
 		for zone in get_tree().get_nodes_in_group("exit_zone"):
 				zone.extract_ready_changed.connect(_on_extract_ready)
 				zone.extracted.connect(_on_extracted)
+
+
+func _style_label(label: Label, size: int, color: Color, outline := 2) -> void:
+		# The one styling door every HUD text walks through. Fill goes to
+		# the theme so state recolors never touch the outline; modulate is
+		# pinned white so nothing can dim the text from outside.
+		label.add_theme_font_size_override("font_size", size)
+		label.add_theme_color_override("font_color", color)
+		label.add_theme_color_override("font_outline_color", INK)
+		label.add_theme_constant_override("outline_size", outline)
+		label.modulate = Color.WHITE
 
 
 func _make_rect(tex: Texture2D, pos: Vector2) -> TextureRect:
@@ -143,7 +165,7 @@ func _on_health_changed(current: int, _max_health: int) -> void:
 		var idx := _state_index(current)
 		_portrait.texture = _portrait_tex(idx)
 		_status.text = STATE_LABELS[idx]
-		_status.modulate = STATE_COLORS[idx]
+		_status.add_theme_color_override("font_color", STATE_COLORS[idx])
 
 
 func _on_intel_changed(count: int, _max_intel: int) -> void:
@@ -153,7 +175,7 @@ func _on_intel_changed(count: int, _max_intel: int) -> void:
 
 func _on_died() -> void:
 		_hint.text = "FLATLINED - press R to restart the night"
-		_hint.modulate = COLOR_RED
+		_hint.add_theme_color_override("font_color", COLOR_RED)
 
 
 func _on_guard_sight(state: int, guard) -> void:
@@ -161,11 +183,11 @@ func _on_guard_sight(state: int, guard) -> void:
 		var values := _guard_sight.values()
 		if values.has(SIGHT_SEEN):
 				_alert.text = "OBSERVED"
-				_alert.modulate = COLOR_RED
+				_alert.add_theme_color_override("font_color", COLOR_RED)
 				_alert.visible = true
 		elif values.has(SIGHT_SEARCHING):
 				_alert.text = "SEARCHING"
-				_alert.modulate = COLOR_SODIUM
+				_alert.add_theme_color_override("font_color", COLOR_SODIUM)
 				_alert.visible = true
 		else:
 				_alert.visible = false
@@ -174,11 +196,11 @@ func _on_guard_sight(state: int, guard) -> void:
 func _on_extract_ready(inside: bool, ready: bool) -> void:
 		if inside and ready:
 				_prompt.text = "SAFEHOUSE - press E to extract"
-				_prompt.modulate = COLOR_SODIUM
+				_prompt.add_theme_color_override("font_color", COLOR_SODIUM)
 				_prompt.visible = true
 		elif inside:
 				_prompt.text = "SAFEHOUSE - need all 3 intel"
-				_prompt.modulate = COLOR_BONE
+				_prompt.add_theme_color_override("font_color", COLOR_BONE)
 				_prompt.visible = true
 		else:
 				_prompt.visible = false
@@ -188,4 +210,4 @@ func _on_extracted() -> void:
 		_prompt.visible = false
 		_alert.visible = false
 		_hint.text = "EXTRACTED - the files burn at dawn. R starts the next night"
-		_hint.modulate = COLOR_SODIUM
+		_hint.add_theme_color_override("font_color", COLOR_SODIUM)

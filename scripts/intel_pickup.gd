@@ -24,6 +24,7 @@ func _ready() -> void:
         var sp := AnimatedSprite2D.new()
         sp.sprite_frames = sf
         sp.play("pulse")
+        sp.z_index = 2   # actor layer - pickups stand above cones and floor
         add_child(sp)
 
         var cs := CollisionShape2D.new()

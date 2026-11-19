@@ -34,6 +34,7 @@ func _ready() -> void:
         var sp := AnimatedSprite2D.new()
         sp.sprite_frames = sf
         sp.play("hum")
+        sp.z_index = 2   # actor layer - the safehouse door stands above cones
         add_child(sp)
 
         var cs := CollisionShape2D.new()

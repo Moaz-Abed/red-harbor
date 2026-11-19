@@ -5,8 +5,8 @@ Neo-noir espionage roguelite. This folder continues the plan from
 stealth probe (patrolling guards, vision cones, sneak), the night loop —
 grab 3 intel folders, then extract at the safehouse door — a Doom-style
 health HUD (**the portrait is the health bar**) and, new in P3, a real
-16 × 16 tileset world: **Harbor Row**, a full block whose walls block
-movement, sight and the cone art alike.
+16 × 16 tileset world: **Harbor Row** — now dealt fresh every night, whose
+walls block movement, sight and the cone art alike.
 
 ## Quick start
 
@@ -29,14 +29,15 @@ movement, sight and the cone art alike.
 | Move | WASD / Arrow keys | Left stick |
 | Dash | Shift / Space | A (bottom button) |
 | Sneak | Ctrl / C (hold) | — |
-| Takedown (close, from behind, unseen) | F | Y (top button) |
+| Takedown | F (close, behind a guard) | — |
 | Interact / Extract | E | X (left button) |
 | Hurt (debug) | H | — |
 | Heal (debug) | K | — |
 | Restart | R | — |
 
 H/K are gray-box probes until P2/P3 add real damage sources. E is real now:
-it triggers extraction when you have all 3 intel.
+it triggers extraction when you have all 3 intel. F is real: see the
+**silent takedown** section below.
 
 ## P2 stealth probe — guards, cones, sneak
 
@@ -59,10 +60,20 @@ Guard state machine and what you see:
 | CHASE (spotted) | surveillance red | `alert` pose, then `chase` | OBSERVED (red) |
 | SEARCH (lost you) | red, dim, sweeping | `search` scan | SEARCHING (sodium) |
 
-While chasing, the guard runs at your LAST SEEN position; if he reaches it
-without seeing you again he sweeps the flashlight for 2.6 s, then resumes
-patrol from the nearest waypoint. If he touches you during a chase, the night
-ends (`player.capture()` → FLATLINED portrait → R to restart).
+While chasing, the guard runs at your LAST SEEN position and keeps closing
+while he can see you; if he reaches it without seeing you again he sweeps
+the flashlight for 2.6 s, then resumes patrol from the nearest waypoint.
+If he touches you during a chase, the night ends (`player.capture()` →
+FLATLINED portrait → R to restart). During SEARCH the detection direction
+follows the *sweeping beam*, not the body — what you see lit is what he
+sees.
+
+**Silent takedown (F)** — sneak up BEHIND a patrolling guard and press F:
+he must not be mid-chase, you must be within 22 px, behind his beam
+(dot < −0.2) with no wall between. He goes down for the whole night
+(darkened lying sprite), 60 ms hit-stop + screen shake sells the thump.
+Downed guards report CLEAR to the HUD, so OBSERVED / SEARCHING drop
+honestly.
 
 **Stealth tuning** — all in `scripts/guard.gd`:
 
@@ -147,6 +158,56 @@ Known probe-era simplifications: guards pass through each other (they only
 collide with the world), chase is slide-along-the-wall dumb (no pathfinding
 yet — he rounds convex corners by sliding), and walking through a
 patrolling guard is unnoticed (cones are the threat, not bodies).
+
+### P3.2 — every night is a new block (procedural Harbor Row)
+
+Opening the scene — and every R restart — now deals a fresh 40 × 22 block.
+`scripts/game.gd` orchestrates: `level_builder.gd` rolls the city, returns
+a placement *plan* (grid cells), and game.gd plants the cast on it. The
+positions in `main.tscn` are editor previews only.
+
+Generator invariants (all locked by the smoke test):
+
+- The border is wall; the 2-tile ring inside it is **always open street**,
+  so the block can always be circled.
+- Buildings are random rectangles (city blocks / warehouses / planters)
+  kept ≥ 1 tile apart — which provably connects all floor. A BFS runs
+  anyway and seals any stray pocket, so intel can never be stranded.
+- You spawn on the bottom street; the safehouse door + sodium pool land on
+  the top street at the far end of the block.
+- 3 caches: ≥ 9 tiles apart, ≥ 7 from your spawn, ≥ 6 from the door.
+- 3 straight patrol lines: ≥ 10 tiles from your spawn (calm night start),
+  ≥ 5 from the door, ≥ 6 between guards, every segment on open floor —
+  with a guaranteed perimeter-street fallback.
+
+Tuning lives at the top of `level_builder.gd` (`BUILD_AREA_TARGET`,
+`DRAIN_COUNT`, `PUDDLE_COUNT`, the distance rules in `_deal_guard_route` /
+`_deal_intel`). game.gd prints a one-line `NIGHT` summary on boot — run
+the smoke test a dozen times and diff the lines to watch the deals vary.
+
+### P3.1 — hardening pass (walls, cones, HUD)
+
+Three bugs from the first Harbor Row playtest, each reproduced with a
+real Godot binary and locked behind a regression check in `tests/`:
+
+| Symptom | Root cause | Fix |
+| --- | --- | --- |
+| Player phases through walls | `level_builder.gd` bound the atlas source to the TileSet AFTER writing per-tile collision polygons. TileData only learns its physics layers once its source is bound, so every polygon was silently dropped — walls shipped with zero collision. | `add_source()` now runs before any TileData physics, with a debug `assert` tripwire. |
+| Guard cones invisible | The cone Polygon2D sat at `z_index = -1`, which is global — it slid the light UNDER the tilemap's z = 0 floor tiles. What you never saw could still catch you. | Screen z contract: floor 0 < cone 1 < actors 2 (`Z_CONE` / `Z_ACTOR` in `guard.gd`). Cone alphas raised to 0.30 / 0.55 / 0.35 so the fog cone reads on dark asphalt. |
+| HUD words barely readable | Tiny labels used art-grade fills (fog gray, ink-red) with no outline and were recolored via `modulate`, which dims whatever is behind the glyphs too. | Every label goes through `_style_label()`: bright text-variant palette fill over a 2–3 px ink outline; recolors go through the theme, never modulate; OBSERVED / SEARCHING are centered at 14 px. |
+
+**Self-test** — boots the real main scene headless, pushes real input, and
+asserts all three contracts:
+
+```bash
+godot --headless --path . res://tests/smoke.tscn
+```
+
+`SMOKE: ALL PASS` (exit 0) means: walls stop the body at the predicted
+spot, sight rays stop at wall faces, cones paint above the floor with
+readable alpha and a full ray fan, and every HUD label carries its ink
+outline with a bright fill. Run it after any physics, guard or HUD change
+(or press F6 on `tests/smoke.tscn` in the editor).
 
 ## The health system (Doom-style, no healthbar)
 
@@ -288,8 +349,11 @@ scripts/player.gd      movement, dash, sneak, health, intel, extract
 scripts/guard.gd       waypoints, vision cone + raycast-fan occlusion, chase AI
 scripts/intel_pickup.gd  pickup pulse + collect on touch
 scripts/exit_zone.gd   doorway state, extract prompt, win handoff
-scripts/level_builder.gd  ASCII map -> TileMapLayer world with wall physics
+scripts/level_builder.gd  procedural Harbor Row: random block -> TileMapLayer with wall physics
+scripts/game.gd         night orchestrator: deals the block, plants the cast
 scripts/hud.gd         portrait states, intel pips, sight alerts, prompts
+tests/smoke.tscn       headless smoke test (F6, or the godot command above)
+tests/smoke_runner.gd  asserts walls, sight rays, cone layering, HUD legibility
 assets/sprites/        all PNG sheets (Godot loads these)
 assets/palettes/       redharbor_noir.gpl — 7-color noir palette
 assets/tiles/          harbor_tiles.png — the P3 16 × 16 world set
@@ -329,7 +393,13 @@ git commit -m "feat: gray-box movement, PI sprite set and Doom-style HUD"
 - [x] Make the loop hard: 3-guard Harbor Row placement that punishes the naive route
 - [x] Give the cone art real occlusion (raycast fan, one geometry with detection)
 - [x] Replace rectangle walls with a real 16 × 16 tileset (`level_builder.gd`)
+- [x] P3.1 hardening: walls actually collide, cones paint above the floor,
+      HUD text outlined — all locked by the headless smoke test in `tests/`
+- [x] Phase 1 feel pass (community merge): F takedown, hit-stop + shake,
+      dash afterimage, dash buffer, dash i-frames, chase close-in fix
+- [x] P3.2: procedural Harbor Row — a fresh block every boot and restart
+      (`game.gd` + `level_builder.gd` generator, variance-checked in QA)
 - [ ] Roadmap Phase 3: roguelite frame — briefing choice screen, run-fail/
 	  run-success states, the conspiracy board's binary night choice,
-      the between-night apartment hub
+	  the between-night apartment hub
 - [ ] P5: jsfxr passes — dash hiss, alert sting, paper snatch, door chime
