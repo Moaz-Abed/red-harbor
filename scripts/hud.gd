@@ -8,6 +8,8 @@ extends CanvasLayer
 ## choose extraction or push deeper).
 ## P2: guards report their sight state; the top line shows OBSERVED (red)
 ## while any guard hunts you and SEARCHING (sodium) while one sweeps.
+## P2 second half: the safehouse door reports through exit_zone.gd and the
+## prompt line tells you when E will extract you.
 
 const PORTRAIT_SHEET := preload("res://assets/sprites/portrait_sheet.png")
 const FRAME_TEX := preload("res://assets/sprites/hud_frame.png")
@@ -24,6 +26,7 @@ const HUD_SCALE := 2.0
 # guard.gd Sight enum values (kept as ints - scripts stay decoupled)
 const SIGHT_SEEN := 1
 const SIGHT_SEARCHING := 2
+const COLOR_BONE := Color("ded6c7")
 const COLOR_SODIUM := Color("e0a458")
 const COLOR_RED := Color("c1292e")
 
@@ -31,6 +34,7 @@ var _portrait: TextureRect
 var _status: Label
 var _hint: Label
 var _alert: Label
+var _prompt: Label
 var _pips: Array[TextureRect] = []
 var _guard_sight := {}   # guard -> last reported Sight value
 
@@ -43,6 +47,10 @@ func _ready() -> void:
 
 		# Portrait sits under the frame; the frame's window is transparent.
 		_portrait = _make_rect(PORTRAIT_SHEET, Vector2(16, 16))
+		# BUGFIX: the sheet holds all 6 health states side by side; until the
+		# first health_changed arrives we must show ONLY the CLEAN frame,
+		# not the whole strip. (Was: raw sheet texture at startup.)
+		_portrait.texture = _portrait_tex(0)
 		root.add_child(_portrait)
 		root.add_child(_make_rect(FRAME_TEX, Vector2(8, 8)))
 
@@ -62,7 +70,7 @@ func _ready() -> void:
 		_hint.position = Vector2(12, 336)
 		_hint.add_theme_font_size_override("font_size", 9)
 		_hint.modulate = Color(0.48, 0.44, 0.5)
-		_hint.text = "WASD move - Ctrl/C sneak - Shift/Space dash - H hurt - K heal - E intel - R restart"
+		_hint.text = "WASD move - Ctrl/C sneak - Shift/Space dash - F takedown - E extract - H hurt - K heal - R restart"
 		root.add_child(_hint)
 
 		# P2: surveillance line, top center. Hidden until a guard reports.
@@ -72,6 +80,13 @@ func _ready() -> void:
 		_alert.visible = false
 		root.add_child(_alert)
 
+		# P2 second half: safehouse prompt, above the hint line.
+		_prompt = Label.new()
+		_prompt.position = Vector2(200, 300)
+		_prompt.add_theme_font_size_override("font_size", 10)
+		_prompt.visible = false
+		root.add_child(_prompt)
+
 		# The player is instanced before this HUD in main.tscn; the frame wait
 		# is a safety net for scene-order changes.
 		await get_tree().process_frame
@@ -80,8 +95,17 @@ func _ready() -> void:
 				player.health_changed.connect(_on_health_changed)
 				player.intel_changed.connect(_on_intel_changed)
 				player.died.connect(_on_died)
+				# Startup sync: paint the player's CURRENT state once. The
+				# widgets above already show fresh-night defaults, but this
+				# keeps the HUD truthful if it ever attaches to a player that
+				# is not fresh (scene-order changes, a between-nights hub).
+				_on_health_changed(player.health, player.MAX_HEALTH)
+				_on_intel_changed(player.intel, player.MAX_INTEL)
 		for guard in get_tree().get_nodes_in_group("guards"):
 				guard.sight_changed.connect(_on_guard_sight.bind(guard))
+		for zone in get_tree().get_nodes_in_group("exit_zone"):
+				zone.extract_ready_changed.connect(_on_extract_ready)
+				zone.extracted.connect(_on_extracted)
 
 
 func _make_rect(tex: Texture2D, pos: Vector2) -> TextureRect:
@@ -91,6 +115,14 @@ func _make_rect(tex: Texture2D, pos: Vector2) -> TextureRect:
 		tr.scale = Vector2(HUD_SCALE, HUD_SCALE)
 		tr.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		return tr
+
+
+func _portrait_tex(idx: int) -> AtlasTexture:
+		# One 32x32 slice of portrait_sheet.png per health state.
+		var at := AtlasTexture.new()
+		at.atlas = PORTRAIT_SHEET
+		at.region = Rect2(idx * 32, 0, 32, 32)
+		return at
 
 
 func _state_index(current: int) -> int:
@@ -109,10 +141,7 @@ func _state_index(current: int) -> int:
 
 func _on_health_changed(current: int, _max_health: int) -> void:
 		var idx := _state_index(current)
-		var at := AtlasTexture.new()
-		at.atlas = PORTRAIT_SHEET
-		at.region = Rect2(idx * 32, 0, 32, 32)
-		_portrait.texture = at
+		_portrait.texture = _portrait_tex(idx)
 		_status.text = STATE_LABELS[idx]
 		_status.modulate = STATE_COLORS[idx]
 
@@ -140,3 +169,23 @@ func _on_guard_sight(state: int, guard) -> void:
 				_alert.visible = true
 		else:
 				_alert.visible = false
+
+
+func _on_extract_ready(inside: bool, ready: bool) -> void:
+		if inside and ready:
+				_prompt.text = "SAFEHOUSE - press E to extract"
+				_prompt.modulate = COLOR_SODIUM
+				_prompt.visible = true
+		elif inside:
+				_prompt.text = "SAFEHOUSE - need all 3 intel"
+				_prompt.modulate = COLOR_BONE
+				_prompt.visible = true
+		else:
+				_prompt.visible = false
+
+
+func _on_extracted() -> void:
+		_prompt.visible = false
+		_alert.visible = false
+		_hint.text = "EXTRACTED - the files burn at dawn. R starts the next night"
+		_hint.modulate = COLOR_SODIUM

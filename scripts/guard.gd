@@ -1,5 +1,5 @@
 extends CharacterBody2D
-## Red Harbor - P2 stealth probe: a patrolling state guard.
+## Red Harbor - a patrolling state guard (P2 probe, occluded cone in P3).
 ##
 ## The guard walks a waypoint loop holding a flashlight (the vision cone).
 ## He sees the player when: inside cone range, inside the cone half-angle,
@@ -16,10 +16,13 @@ extends CharacterBody2D
 ##             gives up after SEARCH_TIME and returns to the nearest waypoint.
 ##
 ## If he touches the player during CHASE, the night is over (player.capture).
-## Occlusion of the cone ART is deliberately not implemented (gray-box probe);
-## only the detection raycast respects walls.
+## The cone ART is drawn with a raycast fan: every frame we cast rays across
+## the arc and clip each vertex at the first wall it hits (layer 2). What you
+## see lit is what he can actually see - the art and the detection share one
+## geometry now that walls are real tiles (level_builder.gd).
 
 signal sight_changed(state: int)  # 0 CLEAR, 1 SEEN (chasing), 2 SEARCHING
+signal took_down
 
 enum State { PATROL, CHASE, SEARCH }
 enum Sight { CLEAR, SEEN, SEARCHING }
@@ -35,7 +38,9 @@ const CONE_HALF_ANGLE := 0.56  # rad, ~32 degrees each side of the beam
 const CAPTURE_RANGE := 14.0    # touch = caught, px
 const SEARCH_TIME := 2.6       # seconds of sweeping before giving up
 const ALERT_HOLD := 0.28       # seconds of the raised-flashlight "!" pose
-const CONE_STEPS := 14         # polygon arc resolution
+const CONE_STEPS := 20         # raycast fan resolution (art occlusion)
+const TAKEDOWN_RANGE := 22.0   # px - how close the PI must be
+const TAKEDOWN_BEHIND_DOT := -0.2  # dot(beam, to-player) must be BELOW this = behind him
 
 const ANIMS := {
         "patrol": {"frames": [0, 1], "fps": 3.0, "loop": true},
@@ -50,6 +55,7 @@ const CONE_COLOR_CALM := Color(0.478, 0.439, 0.5, 0.16)    # fog, translucent
 const CONE_COLOR_SEEN := Color(0.757, 0.161, 0.18, 0.38)   # surveillance red
 const CONE_COLOR_SEARCH := Color(0.757, 0.161, 0.18, 0.22) # red, dimmer
 
+var _down := false
 var _state := State.PATROL
 var _sight := Sight.CLEAR
 var _target_wp := 0
@@ -117,9 +123,11 @@ func _physics_process(delta: float) -> void:
                 State.CHASE:
                         if sees:
                                 _last_seen = _player.global_position
-                        elif global_position.distance_to(_last_seen) < ARRIVE_EPS:
+                        if not sees and global_position.distance_to(_last_seen) < ARRIVE_EPS:
                                 _enter_search()
                         else:
+                                # BUGFIX: he used to stand still while he could SEE you and only
+                                # advanced when you were out of sight. Now he always closes in.
                                 _do_chase(delta)
                 State.SEARCH:
                         if sees:
@@ -140,7 +148,9 @@ func _check_vision() -> bool:
         var eff_range := CONE_RANGE_SNEAK if _player.is_sneaking() else CONE_RANGE
         if to_p.length() > eff_range:
                 return false
-        if absf(_facing.angle_to(to_p.normalized())) > CONE_HALF_ANGLE:
+        # BUGFIX: use the drawn beam, not _facing - during SEARCH the flashlight
+        # sweeps, so detection and cone art must share the same direction.
+        if absf(_cone_dir().angle_to(to_p.normalized())) > CONE_HALF_ANGLE:
                 return false
         _ray.target_position = _ray.to_local(_player.global_position)
         _ray.force_raycast_update()
@@ -164,7 +174,9 @@ func _do_chase(delta: float) -> void:
                 _alert_left = maxf(_alert_left - delta, 0.0)
                 velocity = Vector2.ZERO
                 return
-        _facing = (_last_seen - global_position).normalized()
+        var to_last := _last_seen - global_position
+        if to_last.length() > 0.5:   # never let _facing collapse to ZERO
+                _facing = to_last.normalized()
         velocity = _facing * CHASE_SPEED
         move_and_slide()
         if not _player.is_dead() \
@@ -211,6 +223,42 @@ func _do_patrol(_delta: float) -> void:
         move_and_slide()
 
 
+# --- takedown ------------------------------------------------------------------
+
+func can_be_taken_down(from: Vector2) -> bool:
+        # Rules: not already down, not mid-chase (he is facing you anyway),
+        # close, BEHIND the beam, and no wall between you.
+        if _down or _state == State.CHASE:
+                return false
+        var to_p := from - global_position
+        if to_p.length() > TAKEDOWN_RANGE:
+                return false
+        if _cone_dir().dot(to_p.normalized()) > TAKEDOWN_BEHIND_DOT:
+                return false
+        var q := PhysicsRayQueryParameters2D.create(global_position, from, 2)
+        return get_world_2d().direct_space_state.intersect_ray(q).is_empty()
+
+
+func takedown() -> void:
+        # Silent: he is out for the rest of the night (roadmap 4.1). He stays on
+        # the floor as a dark, lying sprite until a real KO frame exists (art TODO).
+        if _down:
+                return
+        _down = true
+        remove_from_group("guards")
+        set_physics_process(false)
+        collision_layer = 0
+        collision_mask = 0
+        velocity = Vector2.ZERO
+        _cone.visible = false
+        _sight = Sight.CLEAR
+        sight_changed.emit(_sight)   # tells the HUD to drop his OBSERVED / SEARCHING state
+        _sprite.play("search")
+        _sprite.rotation = (PI / 2.0) * (-1.0 if _sprite.flip_h else 1.0)
+        _sprite.modulate = Color(0.55, 0.55, 0.7)
+        took_down.emit()
+
+
 # --- presentation -------------------------------------------------------------
 
 func _update_sight(sees: bool) -> void:
@@ -244,8 +292,20 @@ func _update_cone(delta: float) -> void:
         var pts := PackedVector2Array([Vector2.ZERO])
         for i in range(CONE_STEPS + 1):
                 var a := -CONE_HALF_ANGLE + 2.0 * CONE_HALF_ANGLE * i / CONE_STEPS
-                pts.append(dir.rotated(a) * CONE_RANGE)
+                var d := dir.rotated(a)
+                pts.append(d * _cast_ray(d))
         _cone.polygon = pts
+
+
+func _cast_ray(dir: Vector2) -> float:
+        # One ray of the cone fan: range to the first wall, or full range.
+        # Shares the same RayCast2D as _check_vision - calls are sequential,
+        # so there is no state bleed between detection and the cone art.
+        _ray.target_position = dir * CONE_RANGE
+        _ray.force_raycast_update()
+        if _ray.is_colliding():
+                return global_position.distance_to(_ray.get_collision_point())
+        return CONE_RANGE
 
 
 func _update_animation() -> void:
