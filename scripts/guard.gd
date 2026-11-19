@@ -15,6 +15,11 @@ extends CharacterBody2D
 ##   SEARCH  - reached the last seen position, sweeps the flashlight,
 ##             gives up after SEARCH_TIME and returns to the nearest waypoint.
 ##
+## Metal Gear feel (smooth pass): the beam TURNS at a fixed angular speed
+## instead of snapping, guards stop at each waypoint and look toward the next
+## leg before walking, and the sprite shows one of 3 drawn views
+## (down / up / side) that follows the beam.
+##
 ## If he touches the player during CHASE, the night is over (player.capture).
 ## The cone ART is drawn with a raycast fan: every frame we cast rays across
 ## the arc and clip each vertex at the first wall it hits (layer 2). What you
@@ -39,14 +44,26 @@ const CAPTURE_RANGE := 14.0    # touch = caught, px
 const SEARCH_TIME := 2.6       # seconds of sweeping before giving up
 const ALERT_HOLD := 0.28       # seconds of the raised-flashlight "!" pose
 const CONE_STEPS := 20         # raycast fan resolution (art occlusion)
+const TURN_SPEED := 5.5        # rad/s - how fast the beam swings while patrolling
+const TURN_CHASE := 12.0       # rad/s - hunting guards pivot much faster
+const TURN_MOVE_ARC := 0.6     # rad - patrol walk only starts once the beam is this close
+const WAYPOINT_PAUSE := 0.7    # s - the guard stops, looks along the next leg, then walks
 const TAKEDOWN_RANGE := 22.0   # px - how close the PI must be
 const TAKEDOWN_BEHIND_DOT := -0.2  # dot(beam, to-player) must be BELOW this = behind him
 
+# guard_sheet.png (256 x 480): 32x32 cells, 8 columns. Rows:
+#   0..2 patrol (8)   3..5 chase (8)   6..8 idle (4)   9..11 alert (4)   [x down, up, side]
+#   12 search side (6)   13 ko (6, side)   14 search down (6)
+# The "side" view is drawn facing RIGHT; flip_h turns it left.
+const VIEWS := ["down", "up", "side"]
 const ANIMS := {
-        "patrol": {"frames": [0, 1], "fps": 3.0, "loop": true},
-        "alert": {"frames": [2], "fps": 1.0, "loop": false},
-        "chase": {"frames": [3, 4], "fps": 9.0, "loop": true},
-        "search": {"frames": [5], "fps": 1.0, "loop": false},
+        "patrol": {"row": 0, "frames": 8, "fps": 9.0, "loop": true, "views": true},
+        "chase": {"row": 3, "frames": 8, "fps": 14.0, "loop": true, "views": true},
+        "idle": {"row": 6, "frames": 4, "fps": 4.0, "loop": true, "views": true},
+        "alert": {"row": 9, "frames": 4, "fps": 14.0, "loop": false, "views": true},
+        "search_side": {"row": 12, "frames": 6, "fps": 5.0, "loop": true},
+        "search_down": {"row": 14, "frames": 6, "fps": 5.0, "loop": true},
+        "ko": {"row": 13, "frames": 6, "fps": 10.0, "loop": false},
 }
 const FRAME_SIZE := 32
 const SHEET := preload("res://assets/sprites/guard_sheet.png")
@@ -72,6 +89,10 @@ var _target_wp := 0
 var _last_seen := Vector2.ZERO
 var _search_left := 0.0
 var _alert_left := 0.0
+var _pause_left := 0.0
+var _view := "side"
+var _face_left := false
+var _anim_base := "patrol"
 var _sweep_t := 0.0
 var _facing := Vector2.RIGHT
 var _player: Node2D
@@ -84,7 +105,7 @@ func _ready() -> void:
         add_to_group("guards")
         _sprite = AnimatedSprite2D.new()
         _sprite.sprite_frames = _build_frames()
-        _sprite.play("patrol")
+        _play("patrol")
         _sprite.z_index = Z_ACTOR   # body above every cone, incl. its own
         add_child(_sprite)
 
@@ -106,15 +127,74 @@ func _build_frames() -> SpriteFrames:
         sf.remove_animation("default")
         for anim_name in ANIMS:
                 var cfg: Dictionary = ANIMS[anim_name]
-                sf.add_animation(anim_name)
-                sf.set_animation_speed(anim_name, cfg["fps"])
-                sf.set_animation_loop(anim_name, cfg["loop"])
-                for idx in cfg["frames"]:
-                        var at := AtlasTexture.new()
-                        at.atlas = SHEET
-                        at.region = Rect2(idx * FRAME_SIZE, 0, FRAME_SIZE, FRAME_SIZE)
-                        sf.add_frame(anim_name, at)
+                if cfg.get("views", false):
+                        for v in VIEWS.size():
+                                _add_anim(sf, "%s_%s" % [anim_name, VIEWS[v]], cfg, int(cfg["row"]) + v)
+                else:
+                        _add_anim(sf, anim_name, cfg, int(cfg["row"]))
         return sf
+
+
+func _add_anim(sf: SpriteFrames, anim_name: String, cfg: Dictionary, row: int) -> void:
+        sf.add_animation(anim_name)
+        sf.set_animation_speed(anim_name, cfg["fps"])
+        sf.set_animation_loop(anim_name, cfg["loop"])
+        for col in int(cfg["frames"]):
+                var at := AtlasTexture.new()
+                at.atlas = SHEET
+                at.region = Rect2(col * FRAME_SIZE, row * FRAME_SIZE, FRAME_SIZE, FRAME_SIZE)
+                sf.add_frame(anim_name, at)
+
+
+func _set_view(dir: Vector2) -> void:
+        # Same rule as the player: near-diagonals keep the current view.
+        if dir.length() < 0.1:
+                return
+        var ax := absf(dir.x)
+        var ay := absf(dir.y)
+        if ax > ay * 1.1:
+                _view = "side"
+        elif ay > ax * 1.1:
+                _view = "down" if dir.y > 0.0 else "up"
+        if ax > 0.2:
+                _face_left = dir.x < 0.0
+
+
+func _anim_name(base: String) -> String:
+        if base == "ko":
+                return "ko"
+        if base == "search":
+                # Only side and front searches are drawn; a guard facing away just idles.
+                if _view == "side":
+                        return "search_side"
+                if _view == "down":
+                        return "search_down"
+                return "idle_up"
+        return "%s_%s" % [base, _view]
+
+
+func _play(base: String, force: bool = false) -> void:
+        var anim := _anim_name(base)
+        if force or _sprite.animation != anim:
+                # Turning mid-stride keeps the walk phase (no stutter at corners).
+                var keep := (not force) and base == _anim_base and (base == "patrol" or base == "chase")
+                var f := _sprite.frame
+                var prog := _sprite.frame_progress
+                _sprite.play(anim)
+                if keep:
+                        _sprite.set_frame_and_progress(f, prog)
+        _anim_base = base
+        _sprite.flip_h = (_view == "side" or base == "ko") and _face_left
+
+
+func _turn_toward(dir: Vector2, speed: float, delta: float) -> void:
+        # Constant angular speed: the beam swings like a real flashlight.
+        if dir.length() < 0.001:
+                return
+        var cur := _facing.angle()
+        var diff := angle_difference(cur, dir.angle())
+        var step := speed * delta
+        _facing = Vector2.from_angle(cur + clampf(diff, -step, step))
 
 
 func _physics_process(delta: float) -> void:
@@ -177,6 +257,8 @@ func _enter_chase() -> void:
         _alert_left = ALERT_HOLD
         _last_seen = _player.global_position
         _facing = (_last_seen - global_position).normalized()
+        _set_view(_facing)
+        _play("alert", true)   # one-shot startle: raised torch + "!"
 
 
 func _do_chase(delta: float) -> void:
@@ -184,11 +266,11 @@ func _do_chase(delta: float) -> void:
                 # The "spotted" beat: freeze one frame-worth, cone already red.
                 _alert_left = maxf(_alert_left - delta, 0.0)
                 velocity = Vector2.ZERO
+                _turn_toward(_last_seen - global_position, TURN_CHASE, delta)
                 return
         var to_last := _last_seen - global_position
-        if to_last.length() > 0.5:   # never let _facing collapse to ZERO
-                _facing = to_last.normalized()
-        velocity = _facing * CHASE_SPEED
+        _turn_toward(to_last, TURN_CHASE, delta)   # beam pivots, body runs straight
+        velocity = to_last.normalized() * CHASE_SPEED if to_last.length() > 0.5 else Vector2.ZERO
         move_and_slide()
         if not _player.is_dead() \
                         and global_position.distance_to(_player.global_position) <= CAPTURE_RANGE:
@@ -200,6 +282,7 @@ func _enter_search() -> void:
         _search_left = SEARCH_TIME
         _sweep_t = 0.0
         velocity = Vector2.ZERO
+        _pause_left = 0.0
 
 
 func _do_search(delta: float) -> void:
@@ -223,15 +306,25 @@ func _enter_patrol() -> void:
         _target_wp = best
 
 
-func _do_patrol(_delta: float) -> void:
-        var target := patrol_points[_target_wp]
-        var to_t := target - global_position
+func _do_patrol(delta: float) -> void:
+        var to_t := patrol_points[_target_wp] - global_position
+        if _pause_left > 0.0:
+                # Standing at a waypoint: look along the next leg (smooth turn), then go.
+                _pause_left = maxf(_pause_left - delta, 0.0)
+                velocity = Vector2.ZERO
+                _turn_toward(to_t, TURN_SPEED, delta)
+                return
         if to_t.length() < ARRIVE_EPS:
                 _target_wp = (_target_wp + 1) % patrol_points.size()
-                return   # one-frame hitch = deliberate march feel
-        _facing = to_t.normalized()
-        velocity = _facing * PATROL_SPEED
-        move_and_slide()
+                _pause_left = WAYPOINT_PAUSE
+                velocity = Vector2.ZERO
+                return
+        _turn_toward(to_t, TURN_SPEED, delta)
+        if absf(angle_difference(_facing.angle(), to_t.angle())) < TURN_MOVE_ARC:
+                velocity = to_t.normalized() * PATROL_SPEED
+                move_and_slide()
+        else:
+                velocity = Vector2.ZERO   # still swinging round - turn first, then walk
 
 
 # --- takedown ------------------------------------------------------------------
@@ -264,9 +357,9 @@ func takedown() -> void:
         _cone.visible = false
         _sight = Sight.CLEAR
         sight_changed.emit(_sight)   # tells the HUD to drop his OBSERVED / SEARCHING state
-        _sprite.play("search")
-        _sprite.rotation = (PI / 2.0) * (-1.0 if _sprite.flip_h else 1.0)
-        _sprite.modulate = Color(0.55, 0.55, 0.7)
+        _set_view(_facing)
+        _play("ko", true)             # stagger, buckle, fall, lie (6 frames)
+        _sprite.z_index = 1           # a body on the floor: the PI walks OVER him
         took_down.emit()
 
 
@@ -283,7 +376,7 @@ func _update_sight(sees: bool) -> void:
         if new_sight != _sight:
                 _sight = new_sight
                 sight_changed.emit(_sight)
-        if sees:
+        if sees or _state == State.CHASE:
                 _cone.color = CONE_COLOR_SEEN
         elif _state == State.SEARCH:
                 _cone.color = CONE_COLOR_SEARCH
@@ -320,13 +413,17 @@ func _cast_ray(dir: Vector2) -> float:
 
 
 func _update_animation() -> void:
-        if _facing.x != 0.0:
-                _sprite.flip_h = _facing.x < 0.0
+        _set_view(_facing)
+        _sprite.speed_scale = 1.0
+        var speed := velocity.length()
         if _state == State.CHASE and _alert_left > 0.0:
-                _sprite.play("alert")
+                _play("alert")
         elif _state == State.CHASE:
-                _sprite.play("chase")
+                _play("chase")
+                _sprite.speed_scale = clampf(speed / CHASE_SPEED, 0.6, 1.4) if speed > 1.0 else 1.0
         elif _state == State.SEARCH:
-                _sprite.play("search")
+                _play("search")
+        elif speed > 1.0:
+                _play("patrol")
         else:
-                _sprite.play("patrol")
+                _play("idle")

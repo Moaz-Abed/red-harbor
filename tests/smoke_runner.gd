@@ -20,9 +20,13 @@ extends Node
 ##      and cone alphas keep the flashlight readable on screen.
 ##   5. HUD TEXT IS LEGIBLE - ink outline behind a bright fill, and the
 ##      takedown action the scripts reference actually exists.
+##   6. THE HUD STAYS OUT OF THE WAY - no HUD art widget exceeds 48 px on
+##      a side, so the portrait block can never grow back into an 80 x 80
+##      wall over the top-left of the play view (P3.3 compact pass).
 ##
 ## Guards are frozen during the walk phase so a patrol can never interfere
-## with the wall test (they thaw for the cone checks).
+## with the wall test (they thaw for the cone checks). The walk runs 260
+## frames (~650 px) so the player always ends ON a border wall face.
 ##
 ## Exits 0 with "SMOKE: ALL PASS", exits 1 with a FAIL list otherwise.
 
@@ -89,7 +93,13 @@ func _physics_process(_delta: float) -> void:
                                 g.set_physics_process(false)
                         for it in get_tree().get_nodes_in_group("intel_pickups"):
                                 it.monitoring = false
-                elif _frames == 122:
+                elif _frames == 262:
+                        # 260 frames of walking (~650 px at walk speed) - the
+                        # spawn can sit up to 546 px from its nearest border
+                        # face, so the walk ALWAYS ends in real wall contact.
+                        # (The old 120-frame walk covered ~300 px and the
+                        # border assertion passed vacuously on nearly every
+                        # deal - it could no longer catch a phase-through.)
                         Input.action_release("move_left")
                         Input.action_release("move_right")
                         for g in get_tree().get_nodes_in_group("guards"):
@@ -153,7 +163,7 @@ func _bfs_reachable(from: Vector2i) -> Dictionary:
 
 
 func _check_wall_collision() -> void:
-        # Pushed for 120 physics frames along the bottom ring street toward
+        # Pushed for 260 physics frames along the bottom ring street toward
         # the nearest border. The ring street is guaranteed open, so a body
         # that respects walls parks ON the border's inner face (x = 22 west,
         # x = 618 east, body half-width 6). A body that phases through sails
@@ -163,9 +173,12 @@ func _check_wall_collision() -> void:
         var moved := absf(x - _walk_from_x)
         _check(moved > 100.0, "player actually walked (dx=%.1f)" % moved)
         if _walk_dir < 0.0:
-                _check(x >= 19.0, "west border stops the player (x=%.1f, need >= 19)" % x)
+                # REAL contact: resting on the west face at x ~ 22 (face 16
+                # + half-width 6). Vacuous ranges (mid-map x) are failures
+                # now - the walk is long enough to always reach the wall.
+                _check(x <= 24.0, "west border stops the player (x=%.1f, need <= 24)" % x)
         else:
-                _check(x <= 621.0, "east border stops the player (x=%.1f, need <= 621)" % x)
+                _check(x >= 616.0, "east border stops the player (x=%.1f, need >= 616)" % x)
 
 
 func _check_tile_physics() -> void:
@@ -281,6 +294,20 @@ func _check_hud() -> void:
                                 "controls line is bright (peak=%.2f, was fog-gray)" % _peak(fill))
         if hint == null:
                 _fail("bottom controls line found")
+        # Compact-HUD contract (P3.3): the portrait block once painted at a
+        # flat 2x - an 80 x 80 frame wall plus labels down to y ~110, a fifth
+        # of the view dead. Frame (40), face (32) and pips (14) now all stay
+        # under 48 px on a side.
+        var rects: Array[TextureRect] = []
+        _collect_rects(hud.get_child(0), rects)
+        _check(rects.size() >= 5, "HUD art widgets found (got %d)" % rects.size())
+        var biggest := 0.0
+        for r in rects:
+                if r.texture != null:
+                        var s: Vector2 = r.texture.get_size() * r.scale
+                        biggest = maxf(biggest, maxf(s.x, s.y))
+        _check(biggest <= 48.0,
+                "HUD art stays compact (largest widget %.0f px, need <= 48)" % biggest)
 
 
 func _check_inputs() -> void:
@@ -296,6 +323,14 @@ func _collect_labels(node: Node, out: Array[Label]) -> void:
                         out.append(c)
                 else:
                         _collect_labels(c, out)
+
+
+func _collect_rects(node: Node, out: Array[TextureRect]) -> void:
+        for c in node.get_children():
+                if c is TextureRect:
+                        out.append(c)
+                else:
+                        _collect_rects(c, out)
 
 
 func _finish() -> void:

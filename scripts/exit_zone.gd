@@ -24,9 +24,9 @@ func _ready() -> void:
         var sf := SpriteFrames.new()
         sf.remove_animation("default")
         sf.add_animation("hum")
-        sf.set_animation_speed("hum", 2.5)
+        sf.set_animation_speed("hum", 7.0)   # 6-frame lamp flicker + scanline sweep
         sf.set_animation_loop("hum", true)
-        for idx in 2:
+        for idx in 6:
                 var at := AtlasTexture.new()
                 at.atlas = SHEET
                 at.region = Rect2(idx * FRAME_SIZE, 0, FRAME_SIZE, FRAME_SIZE)

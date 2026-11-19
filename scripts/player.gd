@@ -47,16 +47,24 @@ const MAX_HEALTH := 100
 const MAX_INTEL := 3
 const HURT_INVULN := 0.5     # seconds of i-frames after a hit
 const HURT_ANIM := 0.25      # seconds the hurt pose holds
+const TAKEDOWN_ANIM := 0.26  # seconds of the grab animation
+const TAKEDOWN_MOVE_MULT := 0.25  # feet plant while the grab plays
 
-# player_sheet.png frames: 0-1 idle, 2-5 walk, 6-7 dash, 8-9 sneak, 10 hurt, 11 dead
+# player_sheet.png (256 x 608): 32x32 cells, 8 columns. Rows are anim x view:
+#   rows 0..17 = [idle, walk, sneak, dash, takedown, hurt] x [down, up, side]
+#   row  18    = dead (side view, 6 frames)
+# The "side" view is drawn facing RIGHT; flip_h turns it left. Regenerate the
+# sheet with assets_src/gen_sprites.py (every frame comes from one rig).
+const VIEWS := ["down", "up", "side"]
 const ANIMS := {
-        "idle": {"frames": [0, 1], "fps": 2.0, "loop": true},
-        "walk": {"frames": [2, 3, 4, 5], "fps": 10.0, "loop": true},
-        "dash": {"frames": [6, 7], "fps": 12.0, "loop": true},
-        "sneak": {"frames": [8, 9], "fps": 4.0, "loop": true},
-        "hurt": {"frames": [10], "fps": 1.0, "loop": false},
-        "dead": {"frames": [11], "fps": 1.0, "loop": false},
+        "idle": {"row": 0, "frames": 4, "fps": 4.0, "loop": true},
+        "walk": {"row": 3, "frames": 8, "fps": 12.0, "loop": true},    # fps scales with speed
+        "sneak": {"row": 6, "frames": 6, "fps": 8.0, "loop": true},
+        "dash": {"row": 9, "frames": 4, "fps": 26.0, "loop": false},   # 4 frames ~= DASH_TIME
+        "takedown": {"row": 12, "frames": 4, "fps": 16.0, "loop": false},
+        "hurt": {"row": 15, "frames": 2, "fps": 8.0, "loop": false},
 }
+const DEAD_ANIM := {"row": 18, "frames": 6, "fps": 9.0, "loop": false}
 const FRAME_SIZE := 32
 const SHEET := preload("res://assets/sprites/player_sheet.png")
 const Z_ACTOR := 2   # actor layer - see guard.gd for the world z contract
@@ -75,6 +83,10 @@ var _shake_tween: Tween
 var _shake_base := Vector2.ZERO
 var _invuln_left := 0.0
 var _hurt_anim_left := 0.0
+var _takedown_anim_left := 0.0
+var _view := "down"          # which of the 3 drawn views is showing
+var _face_left := false      # mirror the side view
+var _anim_base := "idle"
 var _dead := false
 var won := false            # extraction succeeded - the night is over
 var _sprite: AnimatedSprite2D
@@ -85,7 +97,7 @@ func _ready() -> void:
         add_to_group("player")
         _sprite = AnimatedSprite2D.new()
         _sprite.sprite_frames = _build_frames()
-        _sprite.play("idle")
+        _play("idle")
         _sprite.z_index = Z_ACTOR   # body above cones, floor and pickups
         add_child(_sprite)
 
@@ -95,15 +107,50 @@ func _build_frames() -> SpriteFrames:
         sf.remove_animation("default")
         for anim_name in ANIMS:
                 var cfg: Dictionary = ANIMS[anim_name]
-                sf.add_animation(anim_name)
-                sf.set_animation_speed(anim_name, cfg["fps"])
-                sf.set_animation_loop(anim_name, cfg["loop"])
-                for idx in cfg["frames"]:
-                        var at := AtlasTexture.new()
-                        at.atlas = SHEET
-                        at.region = Rect2(idx * FRAME_SIZE, 0, FRAME_SIZE, FRAME_SIZE)
-                        sf.add_frame(anim_name, at)
+                for v in VIEWS.size():
+                        _add_anim(sf, "%s_%s" % [anim_name, VIEWS[v]], cfg, int(cfg["row"]) + v)
+        _add_anim(sf, "dead", DEAD_ANIM, int(DEAD_ANIM["row"]))
         return sf
+
+
+func _add_anim(sf: SpriteFrames, anim_name: String, cfg: Dictionary, row: int) -> void:
+        sf.add_animation(anim_name)
+        sf.set_animation_speed(anim_name, cfg["fps"])
+        sf.set_animation_loop(anim_name, cfg["loop"])
+        for col in int(cfg["frames"]):
+                var at := AtlasTexture.new()
+                at.atlas = SHEET
+                at.region = Rect2(col * FRAME_SIZE, row * FRAME_SIZE, FRAME_SIZE, FRAME_SIZE)
+                sf.add_frame(anim_name, at)
+
+
+func _set_facing(dir: Vector2) -> void:
+        # 8-direction input -> one of 3 drawn views. Near-diagonals keep the
+        # current view so the sprite never flickers while you steer around a corner.
+        if dir.length() < 0.1:
+                return
+        var ax := absf(dir.x)
+        var ay := absf(dir.y)
+        if ax > ay * 1.1:
+                _view = "side"
+        elif ay > ax * 1.1:
+                _view = "down" if dir.y > 0.0 else "up"
+        if ax > 0.2:
+                _face_left = dir.x < 0.0
+
+
+func _play(base: String, force: bool = false) -> void:
+        var anim := "dead" if base == "dead" else "%s_%s" % [base, _view]
+        if force or _sprite.animation != anim:
+                # Changing view mid-walk keeps the stride phase (no stutter at corners).
+                var keep := (not force) and base == _anim_base and base != "dead"
+                var f := _sprite.frame
+                var prog := _sprite.frame_progress
+                _sprite.play(anim)
+                if keep:
+                        _sprite.set_frame_and_progress(f, prog)
+        _anim_base = base
+        _sprite.flip_h = (_view == "side" or base == "dead") and _face_left
 
 
 func take_damage(amount: int) -> void:
@@ -118,11 +165,11 @@ func take_damage(amount: int) -> void:
         health_changed.emit(health, MAX_HEALTH)
         if health <= 0:
                 _dead = true
-                _sprite.play("dead")
+                _play("dead", true)
                 _sprite.visible = true
                 died.emit()
         else:
-                _sprite.play("hurt")
+                _play("hurt", true)
 
 
 func heal(amount: int) -> void:
@@ -156,7 +203,7 @@ func capture() -> void:
         _dead = true
         _invuln_left = 0.0
         _sprite.visible = true
-        _sprite.play("dead")
+        _play("dead", true)
         health_changed.emit(0, MAX_HEALTH)
         died.emit()
         _hit_stop(HITSTOP_CAPTURE)
@@ -167,13 +214,15 @@ func extract() -> void:
         # Called by exit_zone.gd when we step out with full intel.
         won = true
         _sprite.visible = true
-        _sprite.play("idle")   # calm, front-facing beat before the fade
+        _set_facing(Vector2.DOWN)
+        _play("idle", true)    # calm, front-facing beat before the fade
 
 
 func _physics_process(delta: float) -> void:
         _dash_cooldown_left = maxf(_dash_cooldown_left - delta, 0.0)
         _invuln_left = maxf(_invuln_left - delta, 0.0)
         _hurt_anim_left = maxf(_hurt_anim_left - delta, 0.0)
+        _takedown_anim_left = maxf(_takedown_anim_left - delta, 0.0)
         _update_debug_keys()
         if _dead or won:
                 velocity = Vector2.ZERO
@@ -200,6 +249,8 @@ func _physics_process(delta: float) -> void:
                         _spawn_ghost()
         else:
                 var top_speed := SNEAK_SPEED if sneaking else MOVE_SPEED
+                if _takedown_anim_left > 0.0:
+                        top_speed *= TAKEDOWN_MOVE_MULT   # feet plant during the grab
                 if input_dir != Vector2.ZERO:
                         velocity = velocity.move_toward(input_dir * top_speed, ACCEL * delta)
                 else:
@@ -211,6 +262,8 @@ func _physics_process(delta: float) -> void:
                         _dash_time_left = DASH_TIME
                         _dash_cooldown_left = DASH_COOLDOWN
                         _ghost_timer = 0.0   # first afterimage on the same frame: no wind-up
+                        _set_facing(_dash_dir)
+                        _play("dash", true)
                         # P2 hooks - deliberately NOT implemented yet (scope contract):
                         #   - EMP lighter sfx (jsfxr)
                         #   - stamina / cooldown UI
@@ -238,6 +291,9 @@ func _try_takedown() -> void:
         if best == null:
                 return
         best.takedown()
+        _set_facing(best.global_position - global_position)   # face the man you grab
+        _takedown_anim_left = TAKEDOWN_ANIM
+        _play("takedown", true)
         await _hit_stop(HITSTOP_TAKEDOWN)
         shake(SHAKE_TAKEDOWN, 0.15)   # freeze first, THEN the thump
         # P5 hooks: takedown thud sfx + particles land here.
@@ -292,18 +348,30 @@ func _spawn_ghost() -> void:
 
 
 func _update_animation(input_dir: Vector2) -> void:
-        if input_dir.x != 0.0:
-                _sprite.flip_h = input_dir.x < 0.0
+        if _dash_time_left > 0.0:
+                _set_facing(_dash_dir)
+        elif input_dir != Vector2.ZERO:
+                _set_facing(input_dir)
+        _sprite.speed_scale = 1.0
+        var speed := velocity.length()
         if _hurt_anim_left > 0.0:
-                _sprite.play("hurt")
+                _play("hurt")
+        elif _takedown_anim_left > 0.0:
+                _play("takedown")
         elif _dash_time_left > 0.0:
-                _sprite.play("dash")
+                _play("dash")
         elif sneaking:
-                _sprite.play("sneak")   # crouched, moving or not
-        elif velocity.length() > 4.0:
-                _sprite.play("walk")
+                _play("sneak")
+                if speed > 4.0:
+                        _sprite.speed_scale = clampf(speed / SNEAK_SPEED, 0.5, 1.4)   # feet match the floor
+                else:
+                        _sprite.speed_scale = 0.0    # crouched and still: hold the pose
+                        _sprite.frame = 0
+        elif speed > 4.0:
+                _play("walk")
+                _sprite.speed_scale = clampf(speed / MOVE_SPEED, 0.5, 1.5)
         else:
-                _sprite.play("idle")
+                _play("idle")
         # Blink while invulnerable - feedback without any healthbar flash.
         _sprite.visible = _invuln_left <= 0.0 or fmod(_invuln_left * 12.0, 2.0) < 1.0
 
