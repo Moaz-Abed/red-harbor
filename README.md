@@ -90,7 +90,59 @@ The probe: sneak the left street past the pinch, let Guard2's artery cone
 catch you mid-crossing, then test whether diving behind a building corner
 actually shakes him — the cone art now stops exactly where his sight does.
 
-## The night loop — intel, safehouse, win
+## The Night Loop (roadmap 4.2) — office, building, back door
+
+The game now boots into **the office** (`scenes/briefing.tscn`) and plays
+the roadmap's night end to end:
+
+**OFFICE → FLOOR 1 → back-door decision → [FLOOR 2] → DEBRIEF → OFFICE**
+
+| Step | What happens | Where |
+| --- | --- | --- |
+| Briefing | Three leads, each a district + case file. Pick one (A/D or 1/2/3, Enter). | `briefing.gd` |
+| The building | 9–12 rooms assembled from furniture templates, 3×3 grid with 0–3 split rooms, doorways from a spanning tree + loops. | `building_builder.gd` |
+| The jobs | Hold **E** beside the prop: bug a phone, steal documents, photograph a ledger. | `task_spot.gd` |
+| Intel tiers | GOSSIP 1 pt · LEADS 3 pts · EVIDENCE 8 pts. Unbanked until you leave. | `run_state.gd` |
+| Alarm ladder | Each new sighting climbs a tier: **ALERTED** +1 guard · **HUNT** faster patrols, longer beams · **LOCKDOWN** +1 guard, every guard hunts, lower floor sealed. | `run_state.gd`, `night.gd`, `guard.gd` |
+| The back door | **E** leave now and bank everything · **Q** descend to the lower floor for EVIDENCE. | `back_door.gd` |
+| The lower floor | Mirrored, colder and darker, one more guard, 2–3 evidence cases (8 pts each). Same door is the exit. | `night.gd` |
+| Caught | The case goes cold: you keep only a 20 % insurance share of what you carried. | `Run.finish` |
+| Debrief | What you carried / banked, alarm peak, sightings, takedowns, session total. **Enter** = office, **R** = replay. | `night_hud.gd` |
+
+The three leads trade danger for reward:
+
+| Lead | District | Jobs (floor 1) | Guards | Floor 1 pts | Lower floor |
+| --- | --- | --- | --- | --- | --- |
+| 311 *Voices on the Wire* | Radio Quarter | bug, bug, documents | 2 | 5 | 2 × 8 |
+| 114 *The Missing Clerk* | Ministry Row | documents, documents, bug | 3 | 7 | 2 × 8 |
+| 207 *The Red Tide Ledger* | Harbor District | ledger, ledger, bug | 4 | 7 | 3 × 8 |
+
+**How guards walk a building.** The generator hands every guard an `AStarGrid2D`
+(`guard.nav`): patrols and chases go *through doorways*, string-pulled so they
+don't zig-zag. `hunt(pos)` sends a guard to a spot as if he had lost the PI
+there (reinforcements and lockdown use it). The alarm tiers scale patrol and
+chase speed, beam reach and waypoint pauses via the `Run` autoload — all
+multipliers read 1.0 when no night is active, so the street probe below is
+untouched.
+
+**Tuning knobs.** Points per tier, hold times, alarm multipliers, the 4 s
+spotting cooldown and the insurance share are constants at the top of
+`run_state.gd`. Furniture layouts are the `FULL_TEMPLATES` / `HALF_TEMPLATES`
+ASCII arrays in `building_builder.gd` — add a template there and it is dealt.
+`Run.debug_seed = N` pins the building deal for QA.
+
+**Tests.** `godot --headless --path . res://tests/night_test.tscn` — run state
+and ladder, 162 generated buildings (9–12 rooms, one job per room, everything
+reachable, patrol legs walkable), the night scene end to end (hold-E job,
+reinforcement, lockdown sealing the door, leave, descend, caught below),
+a guard crossing the building through doorways, and the office.
+
+**Not in this slice (roadmap Phase 3 / backlog):** favors currency and the
+three permanent upgrades, the conspiracy board and the binary choice after a
+night, the camera drone and EMP lighter, procedural lighting moods beyond the
+lower-floor tint, and sound.
+
+## The street-probe night — intel, safehouse, win
 
 One full "night" is now playable end to end:
 
@@ -299,7 +351,8 @@ sheet in LibreSprite works too, but re-running the generator overwrites it.)
 | `assets/sprites/guard_sheet.png` | 256 × 480 | 15 rows × up to 8 frames of 32 × 32 (map below) |
 | `assets/sprites/intel_sheet.png` | 96 × 16 | 6 folder frames of 16 × 16: bob, paper flutter, glint |
 | `assets/sprites/exit_sheet.png` | 192 × 32 | 6 door frames of 32 × 32: lamp flicker + scanline sweep |
-| `assets/tiles/harbor_tiles.png` | 96 × 16 | 6 tiles of 16 × 16 (P3 world set) |
+| `assets/tiles/harbor_tiles.png` | 160 × 16 | 6 street tiles + desk, cabinet, rug, crate (building set) |
+| `assets/sprites/task_sheet.png` | 96 × 48 | job props, 6 frames each: bug phone, ledger, evidence case (documents reuse the folder) |
 | `assets/sprites/portrait_sheet.png` | 192 × 128 | 6 health states (columns) × 4 frames (rows) |
 | `assets/sprites/hud_frame.png` | 40 × 40 | Portrait frame, sodium rivets |
 | `assets/sprites/hud_pip_empty/full.png` | 7 × 7 | Intel counter pips |
@@ -407,7 +460,10 @@ project.godot          viewport, input map, layers, rendering
 .gitignore             keeps .godot/ cache and OS junk out of Git
 .gitattributes         EOL normalization + binary rules for art files
 .gitmessage            conventional commit message template (git config commit.template .gitmessage)
-scenes/main.tscn       Harbor Row: tilemap world, 3 intel caches, safehouse, 3 guards
+scenes/briefing.tscn   THE OFFICE - the boot scene: pick one of three leads
+scenes/night.tscn      the night: building world, PI, back door, HUDs (guards + jobs are dealt in code)
+scenes/task_spot.tscn  one job prop (hold E)    scenes/back_door.tscn  the leave / descend door
+scenes/main.tscn       street probe (legacy P3): Harbor Row, 3 intel caches, safehouse, 3 guards
 scenes/player.tscn     CharacterBody2D + camera
 scenes/hud.tscn        CanvasLayer HUD (portrait, pips, status, alerts, prompts)
 scenes/guard.tscn      patrolling guard (CharacterBody2D, occluded cone)
@@ -420,11 +476,20 @@ scripts/exit_zone.gd   doorway state, extract prompt, win handoff
 scripts/level_builder.gd  procedural Harbor Row: random block -> TileMapLayer with wall physics
 scripts/game.gd         night orchestrator: deals the block, plants the cast
 scripts/hud.gd         portrait states, intel pips, sight alerts, prompts
+scripts/run_state.gd   AUTOLOAD "Run": leads, intel tiers, alarm ladder, banking, debrief data
+scripts/building_builder.gd  9-12 room building from templates + A* nav grid
+scripts/night.gd       night orchestrator: deals a floor, alarm reactions, extract / descend / caught
+scripts/task_spot.gd   hold-E job (bug / documents / ledger / evidence)
+scripts/back_door.gd   the signature decision: leave now or descend
+scripts/night_hud.gd   ledger, alarm ladder, job list, door prompt, debrief
+scripts/briefing.gd    the office: lead cards, rain, selection
 tests/smoke.tscn       headless smoke test (F6, or the godot command above)
 tests/smoke_runner.gd  asserts walls, sight rays, cone layering, HUD legibility
+tests/anim.tscn        headless animation test (sheet layout, views, clips, turning)
+tests/night_test.tscn  headless night-loop test (run state, 162 buildings, the night, nav, office)
 assets/sprites/        all PNG sheets (Godot loads these)
 assets/palettes/       redharbor_noir.gpl — 7-color noir palette
-assets/tiles/          harbor_tiles.png — the P3 16 × 16 world set
+assets/tiles/          harbor_tiles.png — 6 street tiles + desk, cabinet, rug, crate (16 × 16)
 assets_src/            LibreSprite .ase sources (commit these too)
 audio/                 jsfxr exports (P5)
 preview/               4× previews for quick looks (.gdignore'd)

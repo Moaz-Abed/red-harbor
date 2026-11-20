@@ -20,6 +20,12 @@ extends CharacterBody2D
 ## leg before walking, and the sprite shows one of 3 drawn views
 ## (down / up / side) that follows the beam.
 ##
+## Night mode (building): `nav` is an AStarGrid2D the night scene hands in, so
+## patrols and chases walk THROUGH doorways around walls and furniture instead
+## of in straight lines; hunt(pos) sends a guard to a spot as if he had just
+## lost the PI there (reinforcements, lockdown). Every speed / reach / pause
+## is scaled by the alarm ladder in the Run autoload (all 1.0 outside a night).
+##
 ## If he touches the player during CHASE, the night is over (player.capture).
 ## The cone ART is drawn with a raycast fan: every frame we cast rays across
 ## the arc and clip each vertex at the first wall it hits (layer 2). What you
@@ -33,6 +39,8 @@ enum State { PATROL, CHASE, SEARCH }
 enum Sight { CLEAR, SEEN, SEARCHING }
 
 @export var patrol_points: PackedVector2Array = PackedVector2Array()
+var nav: AStarGrid2D            # set by night.gd; null = walk straight (street probe)
+const NAV_ORIGIN := Vector2(0, 4)   # the map's centring offset (see night.gd)
 
 const PATROL_SPEED := 55.0     # px/s, deliberate march
 const CHASE_SPEED := 110.0     # faster than sneak (78), slower than walk (150)
@@ -236,7 +244,7 @@ func _check_vision() -> bool:
         if _player == null or _player.is_dead():
                 return false
         var to_p := _player.global_position - global_position
-        var eff_range := CONE_RANGE_SNEAK if _player.is_sneaking() else CONE_RANGE
+        var eff_range := (CONE_RANGE_SNEAK if _player.is_sneaking() else CONE_RANGE) * Run.range_mult()
         if to_p.length() > eff_range:
                 return false
         # BUGFIX: use the drawn beam, not _facing - during SEARCH the flashlight
@@ -259,6 +267,7 @@ func _enter_chase() -> void:
         _facing = (_last_seen - global_position).normalized()
         _set_view(_facing)
         _play("alert", true)   # one-shot startle: raised torch + "!"
+        Run.register_spot()    # every NEW sighting climbs the alarm ladder
 
 
 func _do_chase(delta: float) -> void:
@@ -269,8 +278,9 @@ func _do_chase(delta: float) -> void:
                 _turn_toward(_last_seen - global_position, TURN_CHASE, delta)
                 return
         var to_last := _last_seen - global_position
-        _turn_toward(to_last, TURN_CHASE, delta)   # beam pivots, body runs straight
-        velocity = to_last.normalized() * CHASE_SPEED if to_last.length() > 0.5 else Vector2.ZERO
+        var step := _steer(_last_seen)             # around walls when a nav grid exists
+        _turn_toward(step, TURN_CHASE, delta)      # beam pivots, body runs
+        velocity = step.normalized() * CHASE_SPEED * Run.chase_mult() if to_last.length() > 0.5 else Vector2.ZERO
         move_and_slide()
         if not _player.is_dead() \
                         and global_position.distance_to(_player.global_position) <= CAPTURE_RANGE:
@@ -307,24 +317,83 @@ func _enter_patrol() -> void:
 
 
 func _do_patrol(delta: float) -> void:
-        var to_t := patrol_points[_target_wp] - global_position
+        var goal := patrol_points[_target_wp]
+        var to_goal := goal - global_position
+        var to_t := _steer(goal)
         if _pause_left > 0.0:
                 # Standing at a waypoint: look along the next leg (smooth turn), then go.
                 _pause_left = maxf(_pause_left - delta, 0.0)
                 velocity = Vector2.ZERO
                 _turn_toward(to_t, TURN_SPEED, delta)
                 return
-        if to_t.length() < ARRIVE_EPS:
+        if to_goal.length() < ARRIVE_EPS:
                 _target_wp = (_target_wp + 1) % patrol_points.size()
-                _pause_left = WAYPOINT_PAUSE
+                _pause_left = WAYPOINT_PAUSE * Run.pause_mult()
                 velocity = Vector2.ZERO
                 return
         _turn_toward(to_t, TURN_SPEED, delta)
         if absf(angle_difference(_facing.angle(), to_t.angle())) < TURN_MOVE_ARC:
-                velocity = to_t.normalized() * PATROL_SPEED
+                velocity = to_t.normalized() * PATROL_SPEED * Run.patrol_mult()
                 move_and_slide()
         else:
                 velocity = Vector2.ZERO   # still swinging round - turn first, then walk
+
+
+func hunt(pos: Vector2) -> void:
+        # Reinforcement / lockdown order: run to this spot as if you had just
+        # lost the PI there. Sight picks the chase up again if he is still in view.
+        if _down:
+                return
+        _state = State.CHASE
+        _alert_left = 0.0
+        _last_seen = pos
+        _pause_left = 0.0
+
+
+# --- walking: straight (street) or A* around walls (building) -----------------------
+
+func _steer(target: Vector2) -> Vector2:
+        # The direction to walk to reach `target`. No nav grid -> straight at it.
+        # With one: straight if the way is clear, otherwise the farthest visible
+        # point along the A* path (string-pulled, so guards don't zig-zag cell by
+        # cell and stall on every 45 degree turn).
+        if nav == null or _clear_line(global_position, target):
+                return target - global_position
+        var from_c := _nav_cell(global_position)
+        var to_c := _nav_cell(target)
+        if nav.is_point_solid(from_c) or nav.is_point_solid(to_c):
+                return target - global_position
+        var path := nav.get_point_path(from_c, to_c)
+        if path.size() < 2:
+                return target - global_position
+        var pick := path[1]
+        for i in range(1, mini(path.size(), 8)):
+                if _clear_line(global_position, path[i]):
+                        pick = path[i]
+                else:
+                        break
+        if global_position.distance_to(pick) < 3.0 and path.size() > 2:
+                pick = path[2]
+        return pick - global_position
+
+
+func _nav_cell(pos: Vector2) -> Vector2i:
+        var c := Vector2i(floori((pos.x - NAV_ORIGIN.x) / 16.0), floori((pos.y - NAV_ORIGIN.y) / 16.0))
+        return Vector2i(clampi(c.x, 0, nav.region.size.x - 1), clampi(c.y, 0, nav.region.size.y - 1))
+
+
+func _clear_line(a: Vector2, b: Vector2) -> bool:
+        # Three parallel rays (centre and +/- 5 px) so a guard never clips a corner.
+        var space := get_world_2d().direct_space_state
+        var dir := (b - a)
+        if dir.length() < 1.0:
+                return true
+        var side := dir.normalized().orthogonal() * 5.0
+        for off in [Vector2.ZERO, side, -side]:
+                var q := PhysicsRayQueryParameters2D.create(a + off, b + off, 2)
+                if not space.intersect_ray(q).is_empty():
+                        return false
+        return true
 
 
 # --- takedown ------------------------------------------------------------------
@@ -349,6 +418,7 @@ func takedown() -> void:
         if _down:
                 return
         _down = true
+        Run.note_takedown()
         remove_from_group("guards")
         set_physics_process(false)
         collision_layer = 0
@@ -405,11 +475,12 @@ func _cast_ray(dir: Vector2) -> float:
         # One ray of the cone fan: range to the first wall, or full range.
         # Shares the same RayCast2D as _check_vision - calls are sequential,
         # so there is no state bleed between detection and the cone art.
-        _ray.target_position = dir * CONE_RANGE
+        var reach := CONE_RANGE * Run.range_mult()
+        _ray.target_position = dir * reach
         _ray.force_raycast_update()
         if _ray.is_colliding():
                 return global_position.distance_to(_ray.get_collision_point())
-        return CONE_RANGE
+        return reach
 
 
 func _update_animation() -> void:

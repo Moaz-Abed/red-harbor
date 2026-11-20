@@ -2,7 +2,8 @@
 """Red Harbor - procedural sprite generator (smooth 3-direction animation sheets).
 
 Run from the repo root:   python3 assets_src/gen_sprites.py
-Writes: assets/sprites/{player,guard,portrait,exit,intel}_sheet.png (+ preview/*.png)
+Writes: assets/sprites/{player,guard,portrait,exit,intel,task}_sheet.png and the
+extended assets/tiles/harbor_tiles.png (+ preview/*.png)
 
 Why a generator: every frame is drawn from one small rig (legs, coat, arms,
 head, hat), so walk/sneak/dash/takedown cycles stay consistent and a palette
@@ -644,6 +645,121 @@ def build_intel():
     return sheet
 
 
+# --- building tiles: 4 furniture/floor tiles appended to harbor_tiles.png -----
+# atlas columns 0..5 are the P3 street set (hand-made, kept as is);
+# 6 DESK, 7 CABINET, 8 RUG (walkable), 9 CRATE. The street builder only reads 0..5.
+def tile_desk():
+    c = Cv(16, 16)
+    c.r(0, 0, 15, 15, INK)
+    c.r(1, 1, 14, 13, SHADOW)
+    c.r(1, 1, 14, 1, SLATE)
+    c.r(3, 4, 8, 8, BONE)                       # papers
+    c.r(4, 5, 7, 5, FOG); c.r(4, 7, 7, 7, FOG)
+    c.r(11, 3, 12, 4, SODIUM)                   # desk lamp
+    c.p(11, 5, INK)
+    c.r(3, 10, 9, 11, SLATE)                    # keyboard
+    for x in (4, 6, 8):
+        c.p(x, 10, FOG)
+    c.r(11, 9, 12, 10, FOG)                     # mug
+    return c.im
+
+
+def tile_cabinet():
+    c = Cv(16, 16)
+    c.r(0, 0, 15, 15, INK)
+    c.r(1, 1, 14, 14, SLATE)
+    c.r(1, 1, 14, 1, FOG)
+    for y in (5, 9, 13):
+        c.r(1, y, 14, y, INK)
+    for y in (3, 7, 11):
+        c.r(6, y, 9, y, FOG)                    # drawer handles
+        c.p(3, y, SHADOW); c.p(12, y, SHADOW)
+    return c.im
+
+
+def tile_rug():
+    c = Cv(16, 16)
+    c.r(0, 0, 15, 15, INK)
+    c.r(1, 1, 14, 14, SHADOW)
+    c.r(2, 2, 13, 13, INK)
+    c.r(3, 3, 12, 12, SHADOW)
+    for i in range(4):                          # woven diamond
+        c.p(7 - i, 4 + i, SLATE); c.p(8 + i, 4 + i, SLATE)
+        c.p(7 - i, 11 - i, SLATE); c.p(8 + i, 11 - i, SLATE)
+    c.p(7, 7, FOG); c.p(8, 8, FOG)
+    return c.im
+
+
+def tile_crate():
+    c = Cv(16, 16)
+    c.r(0, 0, 15, 15, INK)
+    c.r(1, 1, 14, 14, SLATE)
+    c.r(1, 1, 14, 2, FOG)
+    c.line(2, 3, 13, 13, INK)
+    c.line(13, 3, 2, 13, INK)
+    c.r(1, 7, 14, 8, SHADOW)
+    c.p(2, 2, BONE); c.p(13, 2, BONE)           # stencilled corners
+    return c.im
+
+
+def build_tiles():
+    path = os.path.join(ROOT, "assets", "tiles", "harbor_tiles.png")
+    base = Image.open(path).convert("RGBA").crop((0, 0, 96, 16))   # keep the 6 hand-made tiles
+    sheet = Image.new("RGBA", (160, 16), T)
+    sheet.alpha_composite(base, (0, 0))
+    for i, im in enumerate((tile_desk(), tile_cabinet(), tile_rug(), tile_crate())):
+        sheet.alpha_composite(im, (96 + i * 16, 0))
+    return sheet
+
+
+# --- task props (16x16, 6 frames/row): rows = bug phone, ledger, evidence case ----
+# "documents" reuse the sodium folder in intel_sheet.png.
+def _task_frame(kind, k):
+    bob = [0, 0, -1, -1, 0, 0][k]
+    c = Cv(16, 16)
+    if kind == "bug":
+        ring = k in (2, 3, 4)
+        h = -1 if ring else 0
+        c.r(3, 9 + bob, 12, 13 + bob, SLATE)            # desk-phone body
+        c.r(3, 13 + bob, 12, 13 + bob, SHADOW)
+        c.r(6, 10 + bob, 9, 12 + bob, BONE)             # rotary dial
+        c.r(7, 11 + bob, 8, 11 + bob, INK)
+        c.p(4, 10 + bob, FOG); c.p(11, 10 + bob, FOG)   # hook buttons
+        c.r(2, 5 + bob + h, 13, 6 + bob + h, FOG)       # handset resting above the cradle
+        c.r(2, 7 + bob + h, 3, 7 + bob + h, INK); c.r(12, 7 + bob + h, 13, 7 + bob + h, INK)
+        if ring:
+            c.p(1, 3 + bob, BONE); c.p(14, 3 + bob, BONE)
+            c.p(0, 5 + bob, BONE); c.p(15, 5 + bob, BONE)
+    elif kind == "ledger":
+        c.r(1, 6 + bob, 14, 13 + bob, SHADOW)           # cover
+        c.r(2, 6 + bob, 7, 12 + bob, BONE)
+        c.r(8, 6 + bob, 13, 12 + bob, BONE)
+        c.r(7, 6 + bob, 8, 12 + bob, INK)               # spine
+        for y in (8, 10):
+            c.r(3, y + bob, 6, y + bob, FOG); c.r(9, y + bob, 12, y + bob, FOG)
+        if k in (1, 2, 3, 4):                           # camera glint sweeping the page
+            gx = 3 + (k - 1) * 3
+            c.p(gx, 7 + bob, SODIUM); c.p(gx + 1, 7 + bob, SODIUM)
+    else:
+        c.r(2, 7 + bob, 13, 13 + bob, SLATE)            # attache case
+        c.r(2, 7 + bob, 13, 7 + bob, FOG)
+        c.r(6, 5 + bob, 9, 6 + bob, INK)                # handle
+        c.r(7, 9 + bob, 8, 10 + bob, RED)               # the State's wax seal
+        c.p(3, 12 + bob, SHADOW); c.p(12, 12 + bob, SHADOW)
+        if k in (2, 3):
+            c.p(7, 9 + bob, BONE)
+    c.outline()
+    return c.im
+
+
+def build_tasks():
+    sheet = Image.new("RGBA", (6 * 16, 3 * 16), T)
+    for r, kind in enumerate(("bug", "ledger", "evidence")):
+        for k in range(6):
+            sheet.alpha_composite(_task_frame(kind, k), (k * 16, r * 16))
+    return sheet
+
+
 # --- previews ---------------------------------------------------------------
 def preview(sheet, path, scale=3, cell=32, bg=(46, 44, 60, 255)):
     bgim = Image.new("RGBA", sheet.size, bg)
@@ -659,9 +775,15 @@ def main():
     portrait = build_portrait()
     ex = build_exit()
     intel = build_intel()
+    tiles = build_tiles()
+    tasks = build_tasks()
+    tiles.save(os.path.join(ROOT, "assets", "tiles", "harbor_tiles.png"))
+    preview(tiles, os.path.join(PREVIEW, "preview_harbor_tiles.png"), 4)
     for name, im in (("player", player), ("guard", guard), ("portrait", portrait), ("exit", ex), ("intel", intel)):
         im.save(os.path.join(OUT, f"{name}_sheet.png"))
         preview(im, os.path.join(PREVIEW, f"preview_{name}_sheet.png"), 3 if name in ("player", "guard") else 4)
+    tasks.save(os.path.join(OUT, "task_sheet.png"))
+    preview(tasks, os.path.join(PREVIEW, "preview_task_sheet.png"), 4)
     print("sheets written:", {k: v.size for k, v in dict(player=player, guard=guard, portrait=portrait, exit=ex, intel=intel).items()})
 
 

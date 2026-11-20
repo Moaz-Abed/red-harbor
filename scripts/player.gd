@@ -384,4 +384,5 @@ func _update_debug_keys() -> void:
         if Input.is_action_just_pressed("debug_heal"):
                 heal(25)
         if Input.is_action_just_pressed("restart"):
+                Run.on_restart()   # mid-night: forfeit it (nothing banked), deal a fresh one
                 get_tree().reload_current_scene()

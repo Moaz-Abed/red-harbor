@@ -116,6 +116,12 @@ func _ready() -> void:
 				# The player is instanced before this HUD in main.tscn; the frame wait
 				# is a safety net for scene-order changes.
 				await get_tree().process_frame
+				if Run.active:
+					# Night mode: intel lives in the Run ledger (night_hud.gd), not in the
+					# three street-probe pips, and the controls hint changes.
+					for pip in _pips:
+						pip.visible = false
+					_hint.text = "WASD move - Ctrl/C sneak - Shift/Space dash - F takedown - hold E: job / leave - Q descend - R new night"
 				var player := get_tree().get_first_node_in_group("player")
 				if player:
 								player.health_changed.connect(_on_health_changed)
@@ -207,7 +213,7 @@ func _on_intel_changed(count: int, _max_intel: int) -> void:
 
 
 func _on_died() -> void:
-				_hint.text = "FLATLINED - press R to restart the night"
+				_hint.text = "FLATLINED - press R to restart the night" if not Run.active else "CAUGHT - the case goes cold"
 				_hint.add_theme_color_override("font_color", COLOR_RED)
 
 
