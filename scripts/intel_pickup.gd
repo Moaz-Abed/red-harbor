@@ -1,9 +1,6 @@
 extends Area2D
-## Red Harbor - one intel cache (the sodium folder).
-##
-## Walk into it and the PI pockets it: player.add_intel(1) fires, the HUD
-## pip fills, and the folder frees itself. No key press needed - pickups
-## are about routing risk, not button timing.
+## One intel cache (street probe): walk into it and the PI pockets it -
+## pickups are about routing risk, not button timing.
 
 const SHEET := preload("res://assets/sprites/intel_sheet.png")
 const FRAME_SIZE := 16

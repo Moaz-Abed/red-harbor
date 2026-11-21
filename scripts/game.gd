@@ -1,15 +1,7 @@
 extends Node2D
-## Red Harbor - the night orchestrator.
-##
-## Every boot of this scene deals a fresh Harbor Row: level_builder.gd
-## rolls a new block, then this script plants the cast on it - the PI on
-## the bottom street, the safehouse door on the top street, three intel
-## caches and three guard patrols wherever the deal put them. The node
-## positions in main.tscn are only editor previews; the plan is the truth.
-##
-## R (restart) reloads this scene, so "next night" is literally a new deal.
-## The one-line NIGHT summary it prints is QA gold: run the headless smoke
-## test a dozen times and diff the lines to prove the deal actually varies.
+## Street-probe night orchestrator: level_builder.gd deals the block, this
+## script plants the cast (the tscn positions are editor previews). R deals
+## a new one. The NIGHT print line is QA gold - diff it across runs.
 
 const TILE := 16
 const MAP_OFFSET := Vector2(0, 4)   # level_builder centers the 352 px map

@@ -252,13 +252,8 @@ func _check_layering() -> void:
         # cone z_index = -1 tucked the whole flashlight UNDER the tilemap.
         var guards := get_tree().get_nodes_in_group("guards")
         for g in guards:
-                var cone: Polygon2D = null
-                var sprite: AnimatedSprite2D = null
-                for c in g.get_children():
-                        if c is Polygon2D:
-                                cone = c
-                        elif c is AnimatedSprite2D:
-                                sprite = c
+                var cone := _find(g, "Polygon2D") as Polygon2D
+                var sprite := _find(g, "AnimatedSprite2D") as AnimatedSprite2D
                 _check(cone != null, "guard has a cone Polygon2D")
                 if cone != null:
                         _check(cone.z_index >= 1, "cone paints above the floor (z=%d)" % cone.z_index)
@@ -267,9 +262,9 @@ func _check_layering() -> void:
                 if sprite != null:
                         _check(sprite.z_index >= 2, "guard sprite above its cone (z=%d)" % sprite.z_index)
         if _player != null:
-                for c in _player.get_children():
-                        if c is AnimatedSprite2D:
-                                _check(c.z_index >= 2, "player sprite above cones (z=%d)" % c.z_index)
+                var ps := _find(_player, "AnimatedSprite2D") as AnimatedSprite2D
+                if ps != null:
+                        _check(ps.z_index >= 2, "player sprite above cones (z=%d)" % ps.z_index)
 
 
 func _check_hud() -> void:
@@ -331,6 +326,17 @@ func _collect_rects(node: Node, out: Array[TextureRect]) -> void:
                         out.append(c)
                 else:
                         _collect_rects(c, out)
+
+
+func _find(node: Node, kind: String) -> Node:
+        # First descendant of the given built-in class (components nest their nodes).
+        for c in node.get_children():
+                if c.get_class() == kind:
+                        return c
+                var hit := _find(c, kind)
+                if hit != null:
+                        return hit
+        return null
 
 
 func _finish() -> void:

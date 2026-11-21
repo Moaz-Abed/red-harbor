@@ -1,12 +1,6 @@
 extends Area2D
-## Red Harbor - the safehouse door (extraction).
-##
-## The night loop's finish line. While the PI stands in the doorway:
-##   * intel not full  -> HUD shows "SAFEHOUSE - need all 3 intel"
-##   * intel full      -> HUD shows "SAFEHOUSE - press E to extract"
-## Pressing E with full intel ends the night: the player freezes
-## (player.extract()) and the HUD switches to the EXTRACTED state.
-## R starts the next night, same as after FLATLINED.
+## The safehouse door (street probe): stand inside with full intel and press
+## E to end the night - player.extract() freezes the PI, the HUD celebrates.
 
 signal extract_ready_changed(inside: bool, ready: bool)
 signal extracted
