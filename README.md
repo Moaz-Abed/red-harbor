@@ -46,15 +46,19 @@ scripts/
   run_state.gd      autoload "Run": the case bag, boons, favors, shop, save file
   office.gd         the office scene: world build, HUD, panels, input
   office_room.gd    the PS1 diorama: the MAP legend extruded into boxes
-  pi3d.gd           the PI: a low-poly box rig, WASD + move_and_slide
+  pi3d.gd           the PI: a low-poly box rig, WASD + move_and_slide; the
+                    stride crossfades with idle, tails ride a damped spring
   pause_menu.gd     the ESC overlay
   menu.gd           the title screen: spring logo behind a CRT tube
   comps/ps1_view.gd the low-res viewport + post chain
 assets_src/
-  gen_ps1_textures.py   regenerates assets/tex/ (painted + Bayer dithered)
+  gen_ps1_textures.py   regenerates assets/tex/ (painted + Bayer dithered);
+                    the PI sheets are painted per BoxMesh face cell (3x2)
 tests/
   smoke.tscn        headless assertions: `godot --headless --path . res://tests/smoke.tscn`
   capture.tscn      screenshot harness: `godot --path . res://tests/capture.tscn -- --scene=office --out=/tmp/shot.png`
+  pi_closeup.tscn   PI model inspector: orbit the rig idle or mid-stride for
+                    body/face QA: `... pi_closeup.tscn -- --yaw=0 --look=head --out=/tmp/face.png`
 ```
 
 ## Run it
