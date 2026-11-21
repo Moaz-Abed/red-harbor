@@ -38,6 +38,7 @@ var _prompt_in := Spring.new()
 
 
 func _ready() -> void:
+        Input.mouse_mode = Input.MOUSE_MODE_VISIBLE   # back from the office
         var bg := ColorRect.new()
         bg.set_anchors_preset(Control.PRESET_FULL_RECT)
         bg.color = Color("0b0a12")

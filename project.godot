@@ -15,7 +15,7 @@ compatibility/default_parent_skeleton_in_mesh_instance_3d=true
 [application]
 
 config/name="Red Harbor"
-config/description="Neo-noir espionage roguelite - a procedurally dealt Harbor Row every night: occluded vision cones, takedowns, intel extraction."
+config/description="Neo-noir espionage roguelite in PS1-era 3D: one dealt case at a time, a walkable office diorama, dithered tube."
 run/main_scene="res://scenes/menu.tscn"
 config/features=PackedStringArray("4.7", "GL Compatibility")
 config/icon="res://icon.svg"
