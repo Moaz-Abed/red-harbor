@@ -76,9 +76,10 @@ func _check_layout() -> void:
 	for c in _player.get_children():
 		if c is AnimatedSprite2D:
 			ps = c
-	_sheet_ok(ps, Vector2(256, 608), "player")
+	_sheet_ok(ps, Vector2(256, 640), "player")
 	_check(ps.sprite_frames.get_frame_count("walk_side") == 8, "player walk cycle has 8 frames")
 	_check(ps.sprite_frames.has_animation("dead") and ps.sprite_frames.get_frame_count("dead") == 6, "player dead clip has 6 frames")
+	_check(ps.sprite_frames.has_animation("squeeze") and ps.sprite_frames.get_frame_count("squeeze") == 6, "player squeeze (tight spot crawl) clip has 6 frames")
 	var g: Node = get_tree().get_first_node_in_group("guards")
 	for c in g.get_children():
 		if c is AnimatedSprite2D:

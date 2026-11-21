@@ -90,57 +90,101 @@ The probe: sneak the left street past the pinch, let Guard2's artery cone
 catch you mid-crossing, then test whether diving behind a building corner
 actually shakes him — the cone art now stops exactly where his sight does.
 
-## The Night Loop (roadmap 4.2) — office, building, back door
+## The Night Loop (roadmap 4.2) — a Hades-style run
 
-The game now boots into **the office** (`scenes/briefing.tscn`) and plays
-the roadmap's night end to end:
+The game boots into **the office** (`scenes/briefing.tscn`). Every visit deals
+**three different cases** and every night deals a **different building**, so
+no two runs play alike:
 
-**OFFICE → FLOOR 1 → back-door decision → [FLOOR 2] → DEBRIEF → OFFICE**
+**OFFICE (case + boon) → FLOOR 1 → back-door decision → [FLOOR 2] → DEBRIEF → OFFICE**
+
+### The board: three cases that are *not* the same night
+
+Each case has its own **jobs**, its own **district rule** and its own **reward**.
+A board always shows three *different* rules (`Run.roll_offers`):
+
+| Rule | What it does to the night |
+| --- | --- |
+| **QUIET HOURS** | No rule. The clean heist. |
+| **ON AIR** | Dashes and takedowns are *loud*: a ring shows how far, and guards inside it come to look. |
+| **CURFEW** | The alarm climbs by itself every 40 s (a countdown on screen). Intel pays **double**. |
+| **BLACKOUT** | Lights out: short beams, but patrols run 25 % faster. |
+| **HIGH SECURITY** | +1 guard on every floor. Intel pays ×1.5. |
+| **SEALED VAULT** | No lower floor. The 8-point evidence case is on *this* floor. |
+
+The six case archetypes (`Run.ARCHETYPES`) pair a rule with a job set — e.g.
+*Voices on the Wire* (3 bug/doc jobs, ON AIR, favors), *The Red Tide Ledger*
+(ledger photos, CURFEW), *The Dead Drop* (one evidence case, SEALED VAULT) — and
+a **reward**: **favors** (permanent upgrades) or **2 boon picks**.
+
+### Boons: your build for the night (Hades' boons)
+
+After you take a case you pick **one boon of three** (two if the case rewards a
+boon). A boon lasts the whole night; R keeps them, a new case resets them.
+`Run.BOONS`: SOFT SOLES, ADRENALINE, LONG COAT, FAST HANDS, ESCAPE ARTIST,
+SILVER TONGUE, OLD FRIEND, GREED, RUNNER'S HIGH, COLD SHOULDER, LUCKY COIN
+(slip away from the first capture, like Katana ZERO's one-hit tension with a
+second chance). Add one to the array and it is dealt.
+
+### The desk drawer: permanent upgrades (Dead Cells' loop)
+
+Favors persist in `user://red_harbor.cfg`. Spend them in the office (**Z / X /
+C**): LONG STRIDE (dash +12 %), MUFFLED SOLES (sneak +8 %, noise −20 %), DEEP
+POCKETS (insurance +10 %), three levels each.
+
+### Tight spots
+
+A body is 12 × 18 px; a 1-tile-tall slot is 16 px, so a *standing* PI cannot
+walk through it. Those slots are marked with a **chevron floor tile**. Walk
+into one and the PI drops into a **belly crawl** (the `squeeze` animation, a
+10 px collider, sneak-grade visibility, a magnet that centres you on the slot);
+stand up again on the far side. **Guards cannot**: they have a real collider now
+(they no longer slip through walls) and the guard nav grid treats every tight
+spot as solid, so patrols and chases route around. Each building has 1–2
+deliberate crawl holes through walls between rooms — shortcuts only you can
+use. The generator only keeps a deal if every room, job and the back door is
+reachable *without* crawling.
+
+### Fast
+
+Hotline Miami pace: walk 185 px/s, dash 520 px/s over 0.125 s (still ~4
+tiles), 0.24 s dash cooldown, snappy accel and stop, a quicker camera, faster
+guards (patrol 68, chase 150), a 0.12 s fade-in so **R** restarts instantly
+(same case, same boons, a fresh building) and a style **chain**: takedowns and
+jobs inside 6 s link up and score ×chain (shown on the HUD, totalled in the
+debrief; a ghost run — never spotted — adds a bonus).
+
+### The rest of the loop
 
 | Step | What happens | Where |
 | --- | --- | --- |
-| Briefing | Three leads, each a district + case file. Pick one (A/D or 1/2/3, Enter). | `briefing.gd` |
-| The building | 9–12 rooms assembled from furniture templates, 3×3 grid with 0–3 split rooms, doorways from a spanning tree + loops. | `building_builder.gd` |
-| The jobs | Hold **E** beside the prop: bug a phone, steal documents, photograph a ledger. | `task_spot.gd` |
-| Intel tiers | GOSSIP 1 pt · LEADS 3 pts · EVIDENCE 8 pts. Unbanked until you leave. | `run_state.gd` |
-| Alarm ladder | Each new sighting climbs a tier: **ALERTED** +1 guard · **HUNT** faster patrols, longer beams · **LOCKDOWN** +1 guard, every guard hunts, lower floor sealed. | `run_state.gd`, `night.gd`, `guard.gd` |
-| The back door | **E** leave now and bank everything · **Q** descend to the lower floor for EVIDENCE. | `back_door.gd` |
-| The lower floor | Mirrored, colder and darker, one more guard, 2–3 evidence cases (8 pts each). Same door is the exit. | `night.gd` |
-| Caught | The case goes cold: you keep only a 20 % insurance share of what you carried. | `Run.finish` |
-| Debrief | What you carried / banked, alarm peak, sightings, takedowns, session total. **Enter** = office, **R** = replay. | `night_hud.gd` |
+| The building | 9–12 rooms from furniture templates in a 3×3 grid, 0–3 split rooms, doorways from a spanning tree + loops. | `building_builder.gd` |
+| The jobs | Hold **E** beside the prop: bug a phone, steal documents, photograph a ledger, secure evidence. | `task_spot.gd` |
+| Intel tiers | GOSSIP 1 · LEADS 3 · EVIDENCE 8 pts, unbanked until you leave. | `run_state.gd` |
+| Alarm ladder | Each new sighting climbs a tier: ALERTED +1 guard · HUNT faster patrols, longer beams · LOCKDOWN +1 guard, every guard hunts, lower floor sealed. | `run_state.gd`, `night.gd`, `guard.gd` |
+| The back door | **E** leave and bank everything · **Q** descend for EVIDENCE (not on SEALED VAULT, not in LOCKDOWN). | `back_door.gd` |
+| Caught | Keep only the insurance share (20 % + upgrades/boons) of what you carried, plus a few favors. | `Run.finish` |
+| Debrief | Carried / banked, alarm peak, style, favors. **R** again · **Enter** office. | `night_hud.gd` |
 
-The three leads trade danger for reward:
-
-| Lead | District | Jobs (floor 1) | Guards | Floor 1 pts | Lower floor |
-| --- | --- | --- | --- | --- | --- |
-| 311 *Voices on the Wire* | Radio Quarter | bug, bug, documents | 2 | 5 | 2 × 8 |
-| 114 *The Missing Clerk* | Ministry Row | documents, documents, bug | 3 | 7 | 2 × 8 |
-| 207 *The Red Tide Ledger* | Harbor District | ledger, ledger, bug | 4 | 7 | 3 × 8 |
-
-**How guards walk a building.** The generator hands every guard an `AStarGrid2D`
-(`guard.nav`): patrols and chases go *through doorways*, string-pulled so they
-don't zig-zag. `hunt(pos)` sends a guard to a spot as if he had lost the PI
-there (reinforcements and lockdown use it). The alarm tiers scale patrol and
-chase speed, beam reach and waypoint pauses via the `Run` autoload — all
-multipliers read 1.0 when no night is active, so the street probe below is
-untouched.
-
-**Tuning knobs.** Points per tier, hold times, alarm multipliers, the 4 s
-spotting cooldown and the insurance share are constants at the top of
+**Tuning knobs.** Points, hold times, alarm multipliers, rules, boons, shop
+costs, insurance and the chain window are constants at the top of
 `run_state.gd`. Furniture layouts are the `FULL_TEMPLATES` / `HALF_TEMPLATES`
-ASCII arrays in `building_builder.gd` — add a template there and it is dealt.
-`Run.debug_seed = N` pins the building deal for QA.
+ASCII arrays in `building_builder.gd` (10 × 2, stamped on the middle two rows so
+walls never form accidental slots). `Run.debug_seed = N` pins the building deal
+for QA.
 
-**Tests.** `godot --headless --path . res://tests/night_test.tscn` — run state
-and ladder, 162 generated buildings (9–12 rooms, one job per room, everything
-reachable, patrol legs walkable), the night scene end to end (hold-E job,
-reinforcement, lockdown sealing the door, leave, descend, caught below),
-a guard crossing the building through doorways, and the office.
+**Tests.** `godot --headless --path . res://tests/night_test.tscn` covers the
+run state; 40 boards (always 3 different rules); boons, upgrades and the save /
+load; 162 generated buildings (9–12 rooms, one job per room, reachable *without*
+crawling, tight spots solid for guards); the night end to end (jobs, ON AIR
+noise, CURFEW bell, BLACKOUT, SEALED VAULT, lockdown, leave / descend / caught,
+LUCKY COIN); the PI crawling through a slot while a standing PI is stopped;
+guards crossing the building in 10 hunts without entering a wall or a slot; and
+the office (case → boon picks → shop).
 
-**Not in this slice (roadmap Phase 3 / backlog):** favors currency and the
-three permanent upgrades, the conspiracy board and the binary choice after a
-night, the camera drone and EMP lighter, procedural lighting moods beyond the
-lower-floor tint, and sound.
+**Not in this slice (roadmap Phase 3 / backlog):** the conspiracy board and the
+binary choice after a night, the camera drone and EMP lighter, and the
+soundtrack (the mood-driven part of the Hotline Miami reference).
 
 ## The street-probe night — intel, safehouse, win
 
@@ -347,11 +391,11 @@ sheet in LibreSprite works too, but re-running the generator overwrites it.)
 
 | File | Size | Contents |
 | --- | --- | --- |
-| `assets/sprites/player_sheet.png` | 256 × 608 | 19 rows × up to 8 frames of 32 × 32 (map below) |
+| `assets/sprites/player_sheet.png` | 256 × 640 | 20 rows × up to 8 frames of 32 × 32 (map below) |
 | `assets/sprites/guard_sheet.png` | 256 × 480 | 15 rows × up to 8 frames of 32 × 32 (map below) |
 | `assets/sprites/intel_sheet.png` | 96 × 16 | 6 folder frames of 16 × 16: bob, paper flutter, glint |
 | `assets/sprites/exit_sheet.png` | 192 × 32 | 6 door frames of 32 × 32: lamp flicker + scanline sweep |
-| `assets/tiles/harbor_tiles.png` | 160 × 16 | 6 street tiles + desk, cabinet, rug, crate (building set) |
+| `assets/tiles/harbor_tiles.png` | 176 × 16 | 6 street tiles + desk, cabinet, rug, crate, crawlspace (building set) |
 | `assets/sprites/task_sheet.png` | 96 × 48 | job props, 6 frames each: bug phone, ledger, evidence case (documents reuse the folder) |
 | `assets/sprites/portrait_sheet.png` | 192 × 128 | 6 health states (columns) × 4 frames (rows) |
 | `assets/sprites/hud_frame.png` | 40 × 40 | Portrait frame, sodium rivets |
@@ -375,6 +419,7 @@ flickers, and a view change mid-walk keeps the stride phase.
 | 12–14 | `takedown` | 4 | Reach, grab + lunge, hold, release; feet plant briefly |
 | 15–17 | `hurt` | 2 | Recoil + blood pixel |
 | 18 | `dead` | 6 | Stagger, buckle, fall, lie, blood pool grows |
+| 19 | `squeeze` | 6 | Belly crawl through a 1-tile slot (side view, mirrored for left) |
 
 **Guard sheet** — peaked cap with a red band, broader greatcoat, red armband,
 flashlight in the hand that the beam comes from:
@@ -476,13 +521,14 @@ scripts/exit_zone.gd   doorway state, extract prompt, win handoff
 scripts/level_builder.gd  procedural Harbor Row: random block -> TileMapLayer with wall physics
 scripts/game.gd         night orchestrator: deals the block, plants the cast
 scripts/hud.gd         portrait states, intel pips, sight alerts, prompts
-scripts/run_state.gd   AUTOLOAD "Run": leads, intel tiers, alarm ladder, banking, debrief data
-scripts/building_builder.gd  9-12 room building from templates + A* nav grid
+scripts/run_state.gd   AUTOLOAD "Run": the board, rules, boons, favors + shop, intel tiers, alarm ladder, style chain
+scripts/building_builder.gd  9-12 room building from templates, crawl holes, A* nav grid (guards avoid tight spots)
+scripts/noise_ring.gd  the ON AIR noise ring
 scripts/night.gd       night orchestrator: deals a floor, alarm reactions, extract / descend / caught
 scripts/task_spot.gd   hold-E job (bug / documents / ledger / evidence)
 scripts/back_door.gd   the signature decision: leave now or descend
 scripts/night_hud.gd   ledger, alarm ladder, job list, door prompt, debrief
-scripts/briefing.gd    the office: lead cards, rain, selection
+scripts/briefing.gd    the office: the board, the boon pick, the desk drawer
 tests/smoke.tscn       headless smoke test (F6, or the godot command above)
 tests/smoke_runner.gd  asserts walls, sight rays, cone layering, HUD legibility
 tests/anim.tscn        headless animation test (sheet layout, views, clips, turning)

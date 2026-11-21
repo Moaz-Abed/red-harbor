@@ -42,8 +42,8 @@ enum Sight { CLEAR, SEEN, SEARCHING }
 var nav: AStarGrid2D            # set by night.gd; null = walk straight (street probe)
 const NAV_ORIGIN := Vector2(0, 4)   # the map's centring offset (see night.gd)
 
-const PATROL_SPEED := 55.0     # px/s, deliberate march
-const CHASE_SPEED := 110.0     # faster than sneak (78), slower than walk (150)
+const PATROL_SPEED := 68.0     # px/s, a brisk march (the whole game runs faster)
+const CHASE_SPEED := 150.0     # faster than sneak (92), slower than walk (185) and a dash
 const ARRIVE_EPS := 5.0        # waypoint arrival threshold, px
 const CONE_RANGE := 130.0      # flashlight reach, px
 const CONE_RANGE_SNEAK := 62.0 # detection reach vs a sneaking player, px
@@ -55,8 +55,9 @@ const CONE_STEPS := 20         # raycast fan resolution (art occlusion)
 const TURN_SPEED := 5.5        # rad/s - how fast the beam swings while patrolling
 const TURN_CHASE := 12.0       # rad/s - hunting guards pivot much faster
 const TURN_MOVE_ARC := 0.6     # rad - patrol walk only starts once the beam is this close
-const WAYPOINT_PAUSE := 0.7    # s - the guard stops, looks along the next leg, then walks
-const TAKEDOWN_RANGE := 22.0   # px - how close the PI must be
+const WAYPOINT_PAUSE := 0.5    # s - the guard stops, looks along the next leg, then walks
+const TAKEDOWN_RANGE := 22.0   # px - how close the PI must be (OLD FRIEND adds reach)
+const BODY := Vector2(10, 15)  # a hair under one tile, so cell-centre path-following never grazes a wall
 const TAKEDOWN_BEHIND_DOT := -0.2  # dot(beam, to-player) must be BELOW this = behind him
 
 # guard_sheet.png (256 x 480): 32x32 cells, 8 columns. Rows:
@@ -111,6 +112,18 @@ var _ray: RayCast2D
 
 func _ready() -> void:
         add_to_group("guards")
+        # A real body: guards no longer slip through walls or furniture. The
+        # collider is a hair under one tile (10 x 15) so following A* cell
+        # centres never grazes a wall; what keeps them OUT of a tight spot is the
+        # nav grid (squeeze cells are solid to it), exactly as they are too
+        # bulky to crawl.
+        if get_node_or_null("Collision") == null:
+                var cs := CollisionShape2D.new()
+                cs.name = "Collision"
+                var rs := RectangleShape2D.new()
+                rs.size = BODY
+                cs.shape = rs
+                add_child(cs)
         _sprite = AnimatedSprite2D.new()
         _sprite.sprite_frames = _build_frames()
         _play("patrol")
@@ -339,6 +352,22 @@ func _do_patrol(delta: float) -> void:
                 velocity = Vector2.ZERO   # still swinging round - turn first, then walk
 
 
+func hear(pos: Vector2) -> void:
+        # A noise (ON AIR rule): anyone who is not already hunting goes to look.
+        if _down or _state == State.CHASE:
+                return
+        hunt(pos)
+
+
+func lose_track() -> void:
+        # The PI slipped away (LUCKY COIN): every guard drops to searching.
+        if _down:
+                return
+        _alert_left = 0.0
+        if _state == State.CHASE:
+                _enter_search()
+
+
 func hunt(pos: Vector2) -> void:
         # Reinforcement / lockdown order: run to this spot as if you had just
         # lost the PI there. Sight picks the chase up again if he is still in view.
@@ -374,7 +403,21 @@ func _steer(target: Vector2) -> Vector2:
                         break
         if global_position.distance_to(pick) < 3.0 and path.size() > 2:
                 pick = path[2]
-        return pick - global_position
+        return _clear_of_walls(pick) - global_position
+
+
+func _clear_of_walls(p: Vector2) -> Vector2:
+        # The body is 18 px tall and a row is 16: walking the CENTRE of a row that has
+        # a wall on one side would graze it by a pixel and wedge. Nudge the target
+        # toward the open side so there is always daylight.
+        var c := _nav_cell(p)
+        var up := nav.is_point_solid(c + Vector2i.UP)
+        var down := nav.is_point_solid(c + Vector2i.DOWN)
+        if up and not down:
+                return p + Vector2(0.0, 2.0)
+        if down and not up:
+                return p + Vector2(0.0, -2.0)
+        return p
 
 
 func _nav_cell(pos: Vector2) -> Vector2i:
@@ -388,7 +431,7 @@ func _clear_line(a: Vector2, b: Vector2) -> bool:
         var dir := (b - a)
         if dir.length() < 1.0:
                 return true
-        var side := dir.normalized().orthogonal() * 5.0
+        var side := dir.normalized().orthogonal() * 9.5   # the body is up to 18 px across
         for off in [Vector2.ZERO, side, -side]:
                 var q := PhysicsRayQueryParameters2D.create(a + off, b + off, 2)
                 if not space.intersect_ray(q).is_empty():
@@ -404,9 +447,9 @@ func can_be_taken_down(from: Vector2) -> bool:
         if _down or _state == State.CHASE:
                 return false
         var to_p := from - global_position
-        if to_p.length() > TAKEDOWN_RANGE:
+        if to_p.length() > TAKEDOWN_RANGE + Run.add("takedown_range_add"):
                 return false
-        if _cone_dir().dot(to_p.normalized()) > TAKEDOWN_BEHIND_DOT:
+        if _cone_dir().dot(to_p.normalized()) > TAKEDOWN_BEHIND_DOT + Run.add("takedown_dot_add"):
                 return false
         var q := PhysicsRayQueryParameters2D.create(global_position, from, 2)
         return get_world_2d().direct_space_state.intersect_ray(q).is_empty()

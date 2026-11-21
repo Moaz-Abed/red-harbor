@@ -48,7 +48,7 @@ func _ready() -> void:
 
 
 func can_descend() -> bool:
-	return floor_no == 1 and not Run.lockdown()
+	return floor_no == 1 and not Run.lockdown() and Run.can_descend()
 
 
 func prompt_for(points: int) -> Array:
@@ -56,6 +56,8 @@ func prompt_for(points: int) -> Array:
 	if floor_no >= 2:
 		return ["[E] SERVICE EXIT - bank %d pts" % points, "ready"]
 	var leave := "[E] LEAVE NOW - bank %d pts" % points
+	if not Run.can_descend():
+		return [leave + "\nSEALED VAULT - nothing below", "ready"]
 	if Run.lockdown():
 		return [leave + "\nLOCKDOWN - the lower floor is sealed", "blocked"]
 	var pts: int = Run.TIER_POINTS[Run.Tier.EVIDENCE]

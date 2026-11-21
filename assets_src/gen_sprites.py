@@ -10,9 +10,9 @@ head, hat), so walk/sneak/dash/takedown cycles stay consistent and a palette
 or proportion change is one edit, not 90 hand-edited frames.
 
 Sheet layout (32x32 cells, ground line at y=30, centre x=16):
-  player_sheet.png  256 x 608   rows = anim x view, columns = frames
+  player_sheet.png  256 x 640   rows = anim x view, columns = frames
       rows  0..17 : [idle, walk, sneak, dash, takedown, hurt] x [down, up, side]
-      row   18    : dead (side, 6 frames)
+      row   18    : dead (side, 6 frames)   row 19 : squeeze (side, 6 frames)
   guard_sheet.png   256 x 480   rows 0..11 : [patrol, chase, idle, alert] x [down, up, side]
       row 12 : search (side, 6)   row 13 : ko (side, 6)   row 14 : search (down, 6)
 Views: "side" faces RIGHT; the game flips it for left.
@@ -478,7 +478,7 @@ def put(sheet, im, col, row):
 
 
 def build_player():
-    rows = 19
+    rows = 20
     sheet = Image.new("RGBA", (COLS * 32, rows * 32), T)
     anims = [("idle", 4), ("walk", 8), ("sneak", 6), ("dash", 4), ("takedown", 4), ("hurt", 2)]
     for ai, (name, n) in enumerate(anims):
@@ -510,6 +510,8 @@ def build_player():
     ]
     for k, f in enumerate(frames):
         put(sheet, f, k, 18)
+    for k in range(6):                                  # row 19: squeeze (tight spots)
+        put(sheet, crawl_frame(k), k, 19)
     return sheet
 
 
@@ -645,9 +647,61 @@ def build_intel():
     return sheet
 
 
+def tile_crawl():
+    """Crawlspace floor: a tight spot only the PI can squeeze through."""
+    c = Cv(16, 16)
+    c.r(0, 0, 15, 15, INK)
+    c.r(0, 3, 15, 3, SLATE)               # low lintel above and below the slot
+    c.r(0, 12, 15, 12, SLATE)
+    c.r(0, 4, 15, 4, SHADOW)
+    c.r(0, 11, 15, 11, SHADOW)
+    for x in (2, 8):                      # chevrons pointing along the slot
+        c.line(x, 6, x + 2, 8, FOG)
+        c.line(x + 2, 8, x, 10, FOG)
+    return c.im
+
+
+def crawl_frame(k):
+    """The PI squeezing through a 1-tile slot: belly-down side-view crawl,
+    facing RIGHT, 12 px tall so it fits the 16 px slot. 6 frames."""
+    c = Cv()
+    ph = 2 * math.pi * k / 6
+    s, co = math.sin(ph), math.cos(ph)
+    ground = 21
+    undulate = 1 if s > 0.3 else 0
+    reach = round(2 * s)                  # front arm pulls forward, back arm trails
+    kick = 1 if co > 0.3 else 0
+    # trailing legs (alternate kicks)
+    c.r(4, ground - 2 - kick, 11, ground - kick, INK)
+    c.r(5, ground - 4 + kick, 10, ground - 3 + kick, SHADOW)
+    c.r(3, ground - 1 - kick, 5, ground - kick, INK)
+    # coat body, flat along the floor
+    c.r(10, ground - 6 - undulate, 22, ground - 1, SHADOW)
+    c.r(10, ground - 6 - undulate, 22, ground - 6 - undulate, SLATE)
+    c.r(10, ground - 4, 22, ground - 4, INK)                # belt
+    c.p(16, ground - 4, SODIUM)
+    # back arm along the body, front arm reaching ahead
+    c.r(14, ground - 1, 19 + max(-reach, 0), ground, SHADOW)
+    c.r(21, ground - 3, 26 + reach, ground - 2, SHADOW)
+    c.r(27 + reach, ground - 3, 28 + reach, ground - 2, BONE)
+    # head, chin down, hat tipped over the eyes
+    c.r(22, ground - 11 - undulate, 27, ground - 5 - undulate, BONE)
+    c.r(22, ground - 11 - undulate, 27, ground - 11 - undulate, FOG)
+    c.p(26, ground - 8 - undulate, INK)
+    c.r(24, ground - 6 - undulate, 26, ground - 6 - undulate, FOG)
+    c.p(28, ground - 7 - undulate, BONE)                    # cigarette
+    c.p(29, ground - 7 - undulate, SODIUM)
+    c.r(21, ground - 14 - undulate, 27, ground - 12 - undulate, INK)    # hat crown
+    c.r(20, ground - 12 - undulate, 29, ground - 12 - undulate, INK)    # brim
+    c.r(21, ground - 12 - undulate, 27, ground - 12 - undulate, SLATE)  # band
+    c.outline()
+    return c.im
+
+
 # --- building tiles: 4 furniture/floor tiles appended to harbor_tiles.png -----
 # atlas columns 0..5 are the P3 street set (hand-made, kept as is);
-# 6 DESK, 7 CABINET, 8 RUG (walkable), 9 CRATE. The street builder only reads 0..5.
+# 6 DESK, 7 CABINET, 8 RUG (walkable), 9 CRATE, 10 CRAWL (walkable, squeeze only).
+# The street builder only reads 0..5.
 def tile_desk():
     c = Cv(16, 16)
     c.r(0, 0, 15, 15, INK)
@@ -705,9 +759,9 @@ def tile_crate():
 def build_tiles():
     path = os.path.join(ROOT, "assets", "tiles", "harbor_tiles.png")
     base = Image.open(path).convert("RGBA").crop((0, 0, 96, 16))   # keep the 6 hand-made tiles
-    sheet = Image.new("RGBA", (160, 16), T)
+    sheet = Image.new("RGBA", (176, 16), T)
     sheet.alpha_composite(base, (0, 0))
-    for i, im in enumerate((tile_desk(), tile_cabinet(), tile_rug(), tile_crate())):
+    for i, im in enumerate((tile_desk(), tile_cabinet(), tile_rug(), tile_crate(), tile_crawl())):
         sheet.alpha_composite(im, (96 + i * 16, 0))
     return sheet
 

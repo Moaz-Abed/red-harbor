@@ -22,6 +22,8 @@ const MAP_OFFSET := Vector2(0, 4)
 const GUARD_SCENE := preload("res://scenes/guard.tscn")
 const TASK_SCENE := preload("res://scenes/task_spot.tscn")
 const LOWER_TINT := Color(0.5, 0.55, 0.78)   # the lower floor is colder and darker
+const BLACKOUT_TINT := Color(0.45, 0.48, 0.7) # BLACKOUT: lights out
+const RING := preload("res://scripts/noise_ring.gd")
 
 signal descended
 signal reinforcement_arrived(count: int)
@@ -32,6 +34,7 @@ signal reinforcement_arrived(count: int)
 @onready var _hud: CanvasLayer = $NightHud
 
 var plan: Dictionary = {}
+var curfew_left := 0.0               # seconds to the next CURFEW bell (CURFEW rule)
 var guards: Array = []              # every guard on this floor (patrols + reinforcements)
 var reinforcements: Array = []
 var tasks: Array = []
@@ -48,18 +51,27 @@ func _ready() -> void:
 		for i in int(lead["evidence"]):
 			cases.append("evidence")
 		params["tasks"] = cases
-		params["guards"] = int(lead["guards"]) + 1
+		params["guards"] = int(lead["guards"]) + 1 + Run.guard_bonus()
 	else:
 		params["tasks"] = lead["tasks"]
-		params["guards"] = int(lead["guards"])
-	plan = _world.generate(Run.debug_seed, params)
+		params["guards"] = int(lead["guards"]) + Run.guard_bonus()
+	plan = _world.generate(Run.debug_seed, params)   # -1 = a fresh building every night
 	_apply_plan(lead)
 	_hud.bind_world()
+	var tint_color := Color.WHITE
 	if lower:
-		var tint := CanvasModulate.new()
-		tint.color = LOWER_TINT
-		add_child(tint)
+		tint_color = LOWER_TINT
 		_player.health = Run.carry_health
+	if Run.rule() == "blackout":
+		tint_color = tint_color * BLACKOUT_TINT
+	if tint_color != Color.WHITE:
+		var tint := CanvasModulate.new()
+		tint.color = tint_color
+		add_child(tint)
+	curfew_left = Run.CURFEW_EVERY
+	_player.squeeze_cells = plan["squeeze"]
+	Run.noise_made.connect(_on_noise)
+	Run.second_chance_used.connect(_on_second_chance)
 	_player.died.connect(_on_player_died)
 	_door.extracted.connect(_on_extracted)
 	_door.descend_requested.connect(_on_descend)
@@ -70,6 +82,32 @@ func _ready() -> void:
 	print("NIGHT floor=%d rooms=%d player=%s exit=%s tasks=%s" % [
 		Run.floor_no, plan["rooms"], plan["player"], plan["exit"], _task_summary(),
 	])
+
+
+func _process(delta: float) -> void:
+	# CURFEW: the bell tolls and the alarm climbs by itself.
+	if Run.active and Run.rule() == "curfew" and not _player.is_dead() and not _player.won:
+		curfew_left -= delta
+		if curfew_left <= 0.0:
+			curfew_left = Run.CURFEW_EVERY
+			if Run.raise_alarm() and _hud.has_method("flash"):
+				_hud.flash("CURFEW BELL - the alarm climbs", Color("e8b366"))
+
+
+func _on_noise(pos: Vector2, radius: float) -> void:
+	# ON AIR: everyone within earshot (and not already hunting) goes to look.
+	var ring: Node2D = RING.new()
+	ring.radius = radius
+	add_child(ring)
+	ring.global_position = pos
+	for g in guards:
+		if is_instance_valid(g) and g.global_position.distance_to(pos) <= radius:
+			g.hear(pos)
+
+
+func _on_second_chance() -> void:
+	if _hud.has_method("flash"):
+		_hud.flash("LUCKY COIN - you slip away", Color("e8b366"))
 
 
 func _exit_tree() -> void:

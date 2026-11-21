@@ -63,7 +63,7 @@ func tier() -> int:
 
 
 func hold_time() -> float:
-	return Run.TASKS[task_type]["time"]
+	return Run.TASKS[task_type]["time"] * Run.mult("job_time_mult")
 
 
 func _physics_process(delta: float) -> void:
@@ -90,6 +90,7 @@ func _complete() -> void:
 	set_physics_process(false)
 	var t := tier()
 	Run.add_intel(t)
+	Run.note_style(100)
 	if _player != null and _player.has_method("shake"):
 		_player.shake(1.5, 0.12)
 	_float_text("+%d %s - %s" % [Run.TIER_POINTS[t], Run.TIER_NAMES[t], Run.TASKS[task_type]["done"]])

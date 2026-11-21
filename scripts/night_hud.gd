@@ -19,6 +19,7 @@ const COLOR_RED := Color("e85145")
 const COLOR_FOG := Color("a79bb0")
 const COLOR_SLATE := Color("4a4e69")
 const BRIEFING := "res://scenes/briefing.tscn"
+const JOB_SHORT := {"bug": "BUG THE PHONE", "documents": "STEAL DOCUMENTS", "ledger": "PHOTOGRAPH LEDGER", "evidence": "SECURE EVIDENCE"}
 
 var _root: Control
 var _ledger_pts: Label
@@ -27,6 +28,9 @@ var _alarm_pips: Array[ColorRect] = []
 var _alarm_name: Label
 var _jobs: Label
 var _where: Label
+var _rule: Label
+var _boons: Label
+var _chain: Label
 var _prompt: Label
 var _flash: Label
 var _fade: ColorRect
@@ -41,6 +45,11 @@ func _ready() -> void:
 	_root.set_anchors_preset(Control.PRESET_FULL_RECT)
 	_root.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(_root)
+
+	# translucent backing panels: the HUD may sit over the back door or a room,
+	# and must stay readable without hiding the map
+	_panel(Rect2(432, 4, 204, 138))
+	_panel(Rect2(4, 52, 200, 56))
 
 	# --- intel ledger, top right ---
 	_ledger_pts = _label(Vector2(440, 8), 192, 14, COLOR_SODIUM, HORIZONTAL_ALIGNMENT_RIGHT)
@@ -62,6 +71,12 @@ func _ready() -> void:
 	# --- where am I ---
 	_where = _label(Vector2(12, 322), 400, 9, COLOR_FOG, HORIZONTAL_ALIGNMENT_LEFT)
 
+	# --- the district rule and the boons you carry (top left, under the portrait) ---
+	_rule = _label(Vector2(12, 56), 220, 10, COLOR_FOG, HORIZONTAL_ALIGNMENT_LEFT)
+	_boons = _label(Vector2(12, 70), 220, 9, COLOR_BONE, HORIZONTAL_ALIGNMENT_LEFT)
+	# --- the style chain (Hotline Miami) ---
+	_chain = _label(Vector2(400, 118), 232, 10, COLOR_SODIUM, HORIZONTAL_ALIGNMENT_RIGHT)
+
 	# --- back-door prompt ---
 	_prompt = _label(Vector2(120, 286), 400, 11, COLOR_SODIUM, HORIZONTAL_ALIGNMENT_CENTER)
 	_prompt.visible = false
@@ -78,15 +93,54 @@ func _ready() -> void:
 	_fade.color = Color(0.08, 0.07, 0.11, 1.0)
 	_fade.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_root.add_child(_fade)
-	create_tween().tween_property(_fade, "color:a", 0.0, 0.35)
+	create_tween().tween_property(_fade, "color:a", 0.0, 0.12)   # restarts are instant
 
 	Run.ledger_changed.connect(_refresh)
 	Run.alarm_changed.connect(_on_alarm)
 	Run.night_ended.connect(_on_night_ended)
+	Run.boons_changed.connect(_refresh_boons)
+	Run.style_changed.connect(_on_style)
 	for door in get_tree().get_nodes_in_group("back_door"):
 		door.prompt_changed.connect(_on_prompt)
 	_refresh()
+	_refresh_boons()
+	_on_style(Run.chain, Run.style)
 	_on_alarm(Run.alarm)
+
+
+func _process(_delta: float) -> void:
+	# the rule badge doubles as the CURFEW countdown
+	if _rule == null or not Run.active:
+		return
+	var r: String = Run.rule()
+	var txt: String = Run.RULES[r]["name"]
+	if r == "curfew":
+		var host := get_parent()
+		if host != null and "curfew_left" in host:
+			txt += "  %ds" % ceili(host.curfew_left)
+	if _rule.text != txt:
+		_rule.text = txt
+		var col := COLOR_FOG
+		match r:
+			"noise", "heavy":
+				col = COLOR_RED
+			"curfew":
+				col = COLOR_SODIUM
+			"quiet":
+				col = COLOR_BONE
+		_rule.add_theme_color_override("font_color", col)
+
+
+func _refresh_boons() -> void:
+	var names: Array[String] = []
+	for id in Run.boons:
+		names.append(Run.boon_by_id(id)["name"])
+	_boons.text = "\n".join(names)
+	_boons.size.y = 11.0 * names.size() + 6
+
+
+func _on_style(chain: int, style: int) -> void:
+	_chain.text = "" if (chain == 0 and style == 0) else ("CHAIN x%d   STYLE %d" % [maxi(chain, 1), style] if chain > 0 else "STYLE %d" % style)
 
 
 func bind_world() -> void:
@@ -103,6 +157,15 @@ func _exit_tree() -> void:
 		for c in sig.get_connections():
 			if c["callable"].get_object() == self:
 				sig.disconnect(c["callable"])
+
+
+func _panel(r: Rect2) -> void:
+	var p := ColorRect.new()
+	p.position = r.position
+	p.size = r.size
+	p.color = Color(0.06, 0.05, 0.09, 0.55)
+	p.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_root.add_child(p)
 
 
 func _label(pos: Vector2, width: float, size: int, color: Color, align: int) -> Label:
@@ -185,7 +248,7 @@ func _refresh_jobs() -> void:
 		var total := wanted.count(t)
 		var done_n := total - remaining
 		var mark := "[x]" if seen[t] <= done_n else "[ ]"
-		lines.append("%s %s" % [mark, Run.TASKS[t]["label"]])
+		lines.append("%s %s" % [mark, JOB_SHORT[t]])
 	_jobs.text = "\n".join(lines)
 	_jobs.size.y = 12.0 * lines.size() + 6
 
@@ -257,12 +320,12 @@ func _on_night_ended(r: Dictionary) -> void:
 		lines.append("INSURANCE  %d PTS  (%d%% of what you carried)" % [r["insurance"], int(Run.INSURANCE * 100.0)])
 	lines.append("")
 	lines.append("ALARM PEAK %s   SPOTTED x%d   TAKEDOWNS x%d" % [Run.ALARM_NAMES[r["alarm_peak"]], r["spots"], r["takedowns"]])
-	lines.append("SESSION TOTAL  %d PTS" % r["session"])
+	lines.append("STYLE %d   FAVORS +%d   SESSION %d PTS" % [r["style"], r["favors"], r["session"]])
 	lines.append("")
-	lines.append("[ENTER] back to the office     [R] replay this lead")
+	lines.append("[R] again - same case, new building     [ENTER] the office")
 	_debrief_text.text = "\n".join(lines)
 	# a beat so the caught / extract animation lands before the panel
-	await get_tree().create_timer(0.9).timeout
+	await get_tree().create_timer(0.35).timeout
 	_debrief.visible = true
 
 

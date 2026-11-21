@@ -12,6 +12,13 @@ extends CharacterBody2D
 ## then stand in the safehouse door and press E. exit_zone.gd calls
 ## extract() when the night is won.
 ##
+## FAST (Hotline Miami): the whole game runs hot - walk 185, dash 520 over
+## 0.125 s (still ~4 tiles), 0.24 s dash cooldown, snappy accel and stop.
+## TIGHT SPOTS: where a 1-tile-tall slot is too low to stand in, the PI
+## automatically drops into a belly CRAWL (smaller collider, the "squeeze"
+## animation, counts as sneaking) and squeezes through; guards cannot.
+## Boons and the desk-drawer upgrades scale all of this through Run.mult().
+##
 ## Phase 1 feel pass: silent takedown (F), 60 ms hit-stop + screen shake,
 ## dash afterimage, dash input buffer, dash i-frames, and a dash that covers
 ## the roadmap's four tiles (DASH_SPEED * DASH_TIME ~= 64 px).
@@ -25,13 +32,14 @@ signal health_changed(current: int, max_health: int)
 signal intel_changed(count: int, max_intel: int)
 signal died
 
-const MOVE_SPEED := 150.0    # walk speed, px/s
-const SNEAK_SPEED := 78.0    # crouch speed, px/s - past a cone at the right distance
-const ACCEL := 2000.0        # how fast we reach walk speed, px/s^2
-const FRICTION := 2600.0     # how fast we stop - high value = snappy arcade stop
-const DASH_SPEED := 430.0    # dash speed, px/s
-const DASH_TIME := 0.15      # dash duration, s - 430 * 0.15 = ~64 px = 4 tiles (roadmap)
-const DASH_COOLDOWN := 0.35  # seconds before the next dash is allowed
+const MOVE_SPEED := 185.0    # walk speed, px/s - fast, arcade
+const SNEAK_SPEED := 92.0    # crouch speed, px/s - past a cone at the right distance
+const CRAWL_SPEED := 78.0    # belly-crawl speed through a tight spot, px/s
+const ACCEL := 3200.0        # how fast we reach walk speed, px/s^2
+const FRICTION := 3600.0     # how fast we stop - high value = snappy arcade stop
+const DASH_SPEED := 520.0    # dash speed, px/s
+const DASH_TIME := 0.125     # dash duration, s - 520 * 0.125 = 65 px = 4 tiles (roadmap)
+const DASH_COOLDOWN := 0.24  # seconds before the next dash is allowed
 
 const DASH_BUFFER := 0.12    # a dash pressed this early still fires when the cooldown ends
 const DASH_IFRAMES := true   # guards can't catch / hurt you mid-dash (roadmap: dash has i-frames)
@@ -47,12 +55,15 @@ const MAX_HEALTH := 100
 const MAX_INTEL := 3
 const HURT_INVULN := 0.5     # seconds of i-frames after a hit
 const HURT_ANIM := 0.25      # seconds the hurt pose holds
-const TAKEDOWN_ANIM := 0.26  # seconds of the grab animation
+const TAKEDOWN_ANIM := 0.2   # seconds of the grab animation
+const MAP_OFFSET := Vector2(0, 4)   # the building map is centred 4 px down (night.gd)
+const GRACE := 1.4           # seconds nothing can catch you after LUCKY COIN saves you
 const TAKEDOWN_MOVE_MULT := 0.25  # feet plant while the grab plays
 
-# player_sheet.png (256 x 608): 32x32 cells, 8 columns. Rows are anim x view:
+# player_sheet.png (256 x 640): 32x32 cells, 8 columns. Rows are anim x view:
 #   rows 0..17 = [idle, walk, sneak, dash, takedown, hurt] x [down, up, side]
 #   row  18    = dead (side view, 6 frames)
+#   row  19    = squeeze (side view, 6 frames): the belly crawl through a tight spot
 # The "side" view is drawn facing RIGHT; flip_h turns it left. Regenerate the
 # sheet with assets_src/gen_sprites.py (every frame comes from one rig).
 const VIEWS := ["down", "up", "side"]
@@ -60,11 +71,12 @@ const ANIMS := {
         "idle": {"row": 0, "frames": 4, "fps": 4.0, "loop": true},
         "walk": {"row": 3, "frames": 8, "fps": 12.0, "loop": true},    # fps scales with speed
         "sneak": {"row": 6, "frames": 6, "fps": 8.0, "loop": true},
-        "dash": {"row": 9, "frames": 4, "fps": 26.0, "loop": false},   # 4 frames ~= DASH_TIME
+        "dash": {"row": 9, "frames": 4, "fps": 32.0, "loop": false},   # 4 frames ~= DASH_TIME
         "takedown": {"row": 12, "frames": 4, "fps": 16.0, "loop": false},
         "hurt": {"row": 15, "frames": 2, "fps": 8.0, "loop": false},
 }
 const DEAD_ANIM := {"row": 18, "frames": 6, "fps": 9.0, "loop": false}
+const SQUEEZE_ANIM := {"row": 19, "frames": 6, "fps": 10.0, "loop": true}
 const FRAME_SIZE := 32
 const SHEET := preload("res://assets/sprites/player_sheet.png")
 const Z_ACTOR := 2   # actor layer - see guard.gd for the world z contract
@@ -74,6 +86,12 @@ var intel := 0
 var sneaking := false
 var _dash_time_left := 0.0
 var _dash_cooldown_left := 0.0
+var squeeze_cells: Dictionary = {}   # Vector2i -> true; night.gd hands the building's tight spots in
+var squeezing := false
+var _col: CollisionShape2D
+var _stand_shape: Shape2D
+var _crawl_shape: RectangleShape2D
+var _grace_left := 0.0
 var _dash_dir := Vector2.ZERO
 var _dash_buffer_left := 0.0
 var _ghost_timer := 0.0
@@ -100,6 +118,11 @@ func _ready() -> void:
         _play("idle")
         _sprite.z_index = Z_ACTOR   # body above cones, floor and pickups
         add_child(_sprite)
+        _col = get_node_or_null("Collision")
+        if _col != null:
+                _stand_shape = _col.shape
+                _crawl_shape = RectangleShape2D.new()
+                _crawl_shape.size = Vector2(12, 10)   # fits a 16 px slot with 3 px to spare
 
 
 func _build_frames() -> SpriteFrames:
@@ -110,6 +133,7 @@ func _build_frames() -> SpriteFrames:
                 for v in VIEWS.size():
                         _add_anim(sf, "%s_%s" % [anim_name, VIEWS[v]], cfg, int(cfg["row"]) + v)
         _add_anim(sf, "dead", DEAD_ANIM, int(DEAD_ANIM["row"]))
+        _add_anim(sf, "squeeze", SQUEEZE_ANIM, int(SQUEEZE_ANIM["row"]))
         return sf
 
 
@@ -140,17 +164,17 @@ func _set_facing(dir: Vector2) -> void:
 
 
 func _play(base: String, force: bool = false) -> void:
-        var anim := "dead" if base == "dead" else "%s_%s" % [base, _view]
+        var anim := base if (base == "dead" or base == "squeeze") else "%s_%s" % [base, _view]
         if force or _sprite.animation != anim:
                 # Changing view mid-walk keeps the stride phase (no stutter at corners).
-                var keep := (not force) and base == _anim_base and base != "dead"
+                var keep := (not force) and base == _anim_base and base != "dead" and base != "squeeze"
                 var f := _sprite.frame
                 var prog := _sprite.frame_progress
                 _sprite.play(anim)
                 if keep:
                         _sprite.set_frame_and_progress(f, prog)
         _anim_base = base
-        _sprite.flip_h = (_view == "side" or base == "dead") and _face_left
+        _sprite.flip_h = (_view == "side" or base == "dead" or base == "squeeze") and _face_left
 
 
 func take_damage(amount: int) -> void:
@@ -185,7 +209,7 @@ func add_intel(amount: int = 1) -> void:
 
 
 func is_sneaking() -> bool:
-        return sneaking and not _dead
+        return (sneaking or squeezing) and not _dead
 
 
 func is_dead() -> bool:
@@ -195,10 +219,20 @@ func is_dead() -> bool:
 func capture() -> void:
         # A guard reached us (P2) - the night ends no matter what.
         # Bypasses i-frames on purpose: capture is not a hit, it is a reset.
-        if _dead:
+        if _dead or _grace_left > 0.0:
                 return
         if DASH_IFRAMES and _dash_time_left > 0.0:
                 return   # slipped through mid-dash
+        if Run.consume_second_chance():
+                # LUCKY COIN: you slip away. Everyone loses track of you.
+                _grace_left = GRACE
+                _invuln_left = GRACE
+                _hit_stop(0.1)
+                shake(SHAKE_CAPTURE, 0.3)
+                for g in get_tree().get_nodes_in_group("guards"):
+                        if g.has_method("lose_track"):
+                                g.lose_track()
+                return
         health = 0
         _dead = true
         _invuln_left = 0.0
@@ -223,6 +257,7 @@ func _physics_process(delta: float) -> void:
         _invuln_left = maxf(_invuln_left - delta, 0.0)
         _hurt_anim_left = maxf(_hurt_anim_left - delta, 0.0)
         _takedown_anim_left = maxf(_takedown_anim_left - delta, 0.0)
+        _grace_left = maxf(_grace_left - delta, 0.0)
         _update_debug_keys()
         if _dead or won:
                 velocity = Vector2.ZERO
@@ -232,6 +267,8 @@ func _physics_process(delta: float) -> void:
         if input_dir != Vector2.ZERO:
                 _last_dir = input_dir.normalized()
         sneaking = Input.is_action_pressed("sneak") and _dash_time_left <= 0.0
+        if _dash_time_left <= 0.0:
+                input_dir = _update_squeeze(input_dir, delta)
 
         # Input buffer: remember a dash press for DASH_BUFFER seconds so mashing
         # during the cooldown still fires the instant it ends.
@@ -248,7 +285,11 @@ func _physics_process(delta: float) -> void:
                         _ghost_timer = GHOST_EVERY
                         _spawn_ghost()
         else:
-                var top_speed := SNEAK_SPEED if sneaking else MOVE_SPEED
+                var top_speed := MOVE_SPEED * Run.mult("move_mult")
+                if sneaking:
+                        top_speed = SNEAK_SPEED * Run.mult("sneak_mult")
+                if squeezing:
+                        top_speed = CRAWL_SPEED * Run.mult("crawl_mult")
                 if _takedown_anim_left > 0.0:
                         top_speed *= TAKEDOWN_MOVE_MULT   # feet plant during the grab
                 if input_dir != Vector2.ZERO:
@@ -256,11 +297,12 @@ func _physics_process(delta: float) -> void:
                 else:
                         velocity = velocity.move_toward(Vector2.ZERO, FRICTION * delta)
 
-                if _dash_buffer_left > 0.0 and _dash_cooldown_left <= 0.0:
+                if _dash_buffer_left > 0.0 and _dash_cooldown_left <= 0.0 and not squeezing:
                         _dash_dir = input_dir.normalized() if input_dir != Vector2.ZERO else _last_dir
                         _dash_buffer_left = 0.0
-                        _dash_time_left = DASH_TIME
-                        _dash_cooldown_left = DASH_COOLDOWN
+                        _dash_time_left = DASH_TIME * Run.mult("dash_time_mult")
+                        _dash_cooldown_left = DASH_COOLDOWN * Run.mult("dash_cd_mult")
+                        Run.make_noise(global_position, Run.NOISE_DASH)
                         _ghost_timer = 0.0   # first afterimage on the same frame: no wind-up
                         _set_facing(_dash_dir)
                         _play("dash", true)
@@ -268,11 +310,50 @@ func _physics_process(delta: float) -> void:
                         #   - EMP lighter sfx (jsfxr)
                         #   - stamina / cooldown UI
 
-                if Input.is_action_just_pressed("takedown"):
+                if Input.is_action_just_pressed("takedown") and not squeezing:
                         _try_takedown()
 
         move_and_slide()
         _update_animation(input_dir)
+
+
+# --- tight spots: the belly crawl ---------------------------------------------------
+
+func _cell_of(pos: Vector2) -> Vector2i:
+        return Vector2i(floori((pos.x - MAP_OFFSET.x) / 16.0), floori((pos.y - MAP_OFFSET.y) / 16.0))
+
+
+func _update_squeeze(input_dir: Vector2, delta: float) -> Vector2:
+        # A 1-tile-tall slot (wall above AND below) is 16 px; a standing body is
+        # 18 px. Walking into one - or being in one - drops the PI into a crawl:
+        # smaller collider, the squeeze clip, sneaking-grade visibility. The row
+        # is magnetised so you do not have to thread it pixel-perfectly.
+        if squeeze_cells.is_empty() or _col == null:
+                return input_dir
+        var here := _cell_of(global_position)
+        var ahead := here
+        if absf(input_dir.x) > 0.3:
+                ahead = _cell_of(global_position + Vector2(signf(input_dir.x) * 10.0, 0.0))
+        var in_slot: bool = squeeze_cells.has(here) or squeeze_cells.has(ahead)
+        if in_slot and not squeezing:
+                squeezing = true
+                _col.shape = _crawl_shape
+                _dash_buffer_left = 0.0
+        elif squeezing and not in_slot:
+                # leave the crawl only where a standing body fits
+                _col.shape = _stand_shape
+                if test_move(global_transform, Vector2.ZERO):
+                        _col.shape = _crawl_shape
+                else:
+                        squeezing = false
+        if squeezing:
+                _view = "side"
+                var cell: Vector2i = here if squeeze_cells.has(here) else ahead
+                if squeeze_cells.has(cell):
+                        var row_y := cell.y * 16.0 + 8.0 + MAP_OFFSET.y
+                        global_position.y = move_toward(global_position.y, row_y, 120.0 * delta)
+                        input_dir.y = 0.0
+        return input_dir
 
 
 # --- feel: takedown, hit-stop, shake, afterimage ---------------------------------
@@ -291,6 +372,7 @@ func _try_takedown() -> void:
         if best == null:
                 return
         best.takedown()
+        Run.make_noise(global_position, Run.NOISE_TAKEDOWN)
         _set_facing(best.global_position - global_position)   # face the man you grab
         _takedown_anim_left = TAKEDOWN_ANIM
         _play("takedown", true)
@@ -354,6 +436,16 @@ func _update_animation(input_dir: Vector2) -> void:
                 _set_facing(input_dir)
         _sprite.speed_scale = 1.0
         var speed := velocity.length()
+        if squeezing:
+                _play("squeeze")
+                if absf(velocity.x) > 3.0:
+                        _face_left = velocity.x < 0.0
+                        _sprite.flip_h = _face_left
+                        _sprite.speed_scale = clampf(absf(velocity.x) / CRAWL_SPEED, 0.5, 2.0)
+                else:
+                        _sprite.speed_scale = 0.0     # stuck in the slot: hold the pose
+                _sprite.visible = true
+                return
         if _hurt_anim_left > 0.0:
                 _play("hurt")
         elif _takedown_anim_left > 0.0:

@@ -23,6 +23,16 @@ extends Node2D
 ##      each guard gets a patrol loop through three rooms (A* does the
 ##      walking, so patrols and chases go through doorways, not walls).
 ##
+## TIGHT SPOTS. A body is 12 x 18 px, so a 1-tile-tall slot (16 px, wall above
+## AND below) is too low to walk through standing. Those cells are "squeeze"
+## cells: the PI can CRAWL through them (player.gd, the squeeze animation) but
+## guards cannot - the guard nav grid marks them solid, so patrols and chases
+## route around. Deliberate crawl holes (a 1-tile gap in a wall between two
+## rooms) give the PI shortcuts guards cannot use; furniture can create more by
+## accident. A deal is only kept if every room, job and the back door is
+## reachable WITHOUT squeezing, so a crawl hole is always a shortcut, never a
+## requirement. Squeeze cells are drawn with the crawlspace tile.
+##
 ## Floor 1 enters bottom-left and leaves top-right; the lower floor mirrors
 ## that (enter bottom-right, leave top-left) and is dressed from the denser
 ## archive / storeroom templates.
@@ -56,28 +66,32 @@ const T_DESK := 6
 const T_CABINET := 7
 const T_RUG := 8
 const T_CRATE := 9
+const T_CRAWL := 10
 const SOLID_TILES := [T_WALL, T_WALL_TOP, T_DESK, T_CABINET, T_CRATE]
 
-# Furniture templates for a whole room's inner area (10 x 4).
+# Furniture templates for a whole room: 10 wide x 2 tall, stamped on the
+# MIDDLE two rows of the 6-row interior. That leaves two open rows above and
+# two below, so no wall-hugging corridor is ever a 1-tile slot - the tight
+# spots in a building are the deliberate crawl holes, not accidents.
 #   .  floor   r  rug (walkable)   d  desk   k  filing cabinet   c  crate
 const FULL_TEMPLATES := [
-	["k.k.k.k.k.", "..........", ".dd....dd.", ".........."],   # 0 records office
-	[".dd..dd...", "..........", ".dd..dd...", "..rrrr...."],   # 1 office pool
-	["..........", "..dddddd..", "..dddddd..", ".........."],   # 2 boardroom
-	["kk.kk.kk.k", "..........", "kk.kk.kk.k", ".........."],   # 3 archive stacks
-	["cc....cc..", "cc....c...", "......cc..", ".cc...cc.."],   # 4 storeroom
-	["rrrrrr....", "rrrrrr..d.", "rrrrrr..d.", ".........."],   # 5 lounge
-	["kk........", "kk....dd..", "......dd..", ".dd......."],   # 6 switchboard
-	["..........", "..k....k..", "..k....k..", ".........."],   # 7 open hall
+	["k.k.k.k.k.", "k.k.k.k.k."],   # 0 records office
+	[".dd..dd...", ".dd..dd..."],   # 1 office pool
+	["..dddddd..", "..dddddd.."],   # 2 boardroom
+	["kk.kk.kk.k", "kk.kk.kk.k"],   # 3 archive stacks
+	["cc....cc..", "cc.cc.cc.c"],   # 4 storeroom
+	["rrrrrr....", "rrrrrr..d."],   # 5 lounge
+	["kk....dd..", "kk....dd.."],   # 6 switchboard
+	["..k....k..", "..k....k.."],   # 7 open hall
 ]
 const VAULT_TEMPLATES := [0, 3, 4, 7]        # indices used on the lower floor
 
 # Small templates for the two halves of a split room (4 wide; the narrower
 # right half crops the last column).
 const HALF_TEMPLATES := [
-	["d..k", "....", ".c..", "..k."],
-	["k..k", "....", ".dd.", "...."],
-	["..cc", "....", "r...", "rr.."],
+	["d..k", "d..k"],
+	["k..k", "...."],
+	["..cc", "r.cc"],
 ]
 
 var _rng := RandomNumberGenerator.new()
@@ -86,7 +100,10 @@ var _furn := {}         # Vector2i -> "d" | "k" | "c"
 var _rug := {}
 var _neon := {}
 var _puddle := {}
-var _open := {}         # reachable walkable cells (BFS from the entry)
+var _open := {}         # reachable walkable cells (BFS from the entry), squeeze cells included
+var _squeeze := {}      # open cells with wall/furniture above AND below: crawl only
+var _stand := {}        # cells reachable WITHOUT squeezing (what guards can use)
+var _holes := 0
 var _rooms: Array[Dictionary] = []     # {rect: Rect2i, grid: Vector2i}
 var _edges: Array = []                 # [Vector2i, Vector2i] doorways between grid rooms
 var _map: Array[String] = []
@@ -108,6 +125,16 @@ func generate(rng_seed: int = -1, params: Dictionary = {}) -> Dictionary:
 # --- the deal ------------------------------------------------------------------------
 
 func _deal(params: Dictionary) -> Dictionary:
+	# Keep dealing until the building is fair (see TIGHT SPOTS above).
+	for attempt in 80:
+		var plan := _deal_once(params)
+		if not plan.is_empty():
+			return plan
+	assert(false, "building_builder: no fair deal in 80 tries")
+	return {}
+
+
+func _deal_once(params: Dictionary) -> Dictionary:
 	var floor_no: int = params.get("floor", 1)
 	var tasks: Array = params.get("tasks", ["documents", "bug", "ledger"])
 	var guard_count: int = params.get("guards", 3)
@@ -163,6 +190,8 @@ func _deal(params: Dictionary) -> Dictionary:
 			if cy != gy and cy != gy + 1:
 				_solid[Vector2i(wx, cy)] = true
 
+	_carve_crawl_holes()
+
 	# the room list: one rect per room, two per split room
 	for ry in ROWS:
 		for rx in COLS:
@@ -195,13 +224,24 @@ func _deal(params: Dictionary) -> Dictionary:
 			var c := Vector2i(x, y)
 			if not _solid.has(c) and not _open.has(c):
 				_solid[c] = true
+
+	# tight spots: only the PI can crawl through them; the deal must not need them
+	_find_squeeze()
+	if _squeeze.has(entry_cell) or _squeeze.has(exit_cell):
+		return {}
+	_flood_stand(entry_cell)
+	if not _stand.has(exit_cell):
+		return {}
 	_build_nav()
 
+	var centers := _room_centers()
+	if centers.size() != _rooms.size():
+		return {}                           # a room only reachable by crawling
 	# 6. jobs, one per room, next to furniture
 	var task_list := _deal_tasks(tasks, entry_cell, exit_cell)
-
+	if task_list.size() != tasks.size():
+		return {}
 	# 7. patrols
-	var centers := _room_centers()
 	var routes := _deal_routes(guard_count, entry_cell, centers)
 
 	_dress_floor(exit_cell)
@@ -221,6 +261,8 @@ func _deal(params: Dictionary) -> Dictionary:
 		"rooms": _rooms.size(),
 		"room_centers": centers,
 		"nav": nav,
+		"squeeze": _squeeze.duplicate(),
+		"crawl_holes": _holes,
 	}
 
 
@@ -325,7 +367,7 @@ func _dress_room(rect: Rect2i, lower: bool) -> void:
 			if tx >= inner.size.x:
 				continue
 			var ch := row[row.length() - 1 - tx] if flip and rect.size.x == ROOM_W else row[tx]
-			var cell := Vector2i(inner.position.x + tx, inner.position.y + ty)
+			var cell := Vector2i(inner.position.x + tx, inner.position.y + 1 + ty)   # middle two rows
 			match ch:
 				"d", "k", "c":
 					_solid[cell] = true
@@ -360,6 +402,62 @@ func _build_nav() -> void:
 	nav.update()
 	for c in _solid:
 		nav.set_point_solid(c, true)
+	for c in _squeeze:
+		nav.set_point_solid(c, true)        # guards are too bulky to crawl
+
+
+# --- tight spots ------------------------------------------------------------------------
+
+func _carve_crawl_holes() -> void:
+	# A 1-tile hole through a wall between side-by-side rooms: a slot 16 px
+	# tall, too low to walk through but fine to crawl (and guards cannot).
+	_holes = 0
+	var pairs: Array = []
+	for ry in ROWS:
+		for rx in range(COLS - 1):
+			pairs.append(Vector2i(rx, ry))
+	_shuffle(pairs)
+	var want := _rng.randi_range(1, 2)
+	for g in pairs:
+		if _holes >= want:
+			break
+		var r := _interior(g)
+		var wx := r.end.x
+		var ys: Array = []
+		for y in range(r.position.y + 1, r.end.y - 1):
+			if _solid.has(Vector2i(wx, y)) and _solid.has(Vector2i(wx, y - 1)) and _solid.has(Vector2i(wx, y + 1)):
+				ys.append(y)
+		if ys.is_empty():
+			continue
+		_solid.erase(Vector2i(wx, ys[_rng.randi_range(0, ys.size() - 1)]))
+		_holes += 1
+
+
+func _find_squeeze() -> void:
+	_squeeze.clear()
+	for c in _open.keys():
+		if _solid.has(c + Vector2i.UP) and _solid.has(c + Vector2i.DOWN):
+			_squeeze[c] = true
+
+
+func _flood_stand(start: Vector2i) -> void:
+	_stand.clear()
+	var queue: Array[Vector2i] = [start]
+	_stand[start] = true
+	while not queue.is_empty():
+		var cur: Vector2i = queue.pop_back()
+		for d in [Vector2i.RIGHT, Vector2i.LEFT, Vector2i.DOWN, Vector2i.UP]:
+			var nxt: Vector2i = cur + d
+			if nxt.x < 0 or nxt.y < 0 or nxt.x >= W or nxt.y >= H:
+				continue
+			if _stand.has(nxt) or _solid.has(nxt) or _squeeze.has(nxt):
+				continue
+			_stand[nxt] = true
+			queue.append(nxt)
+
+
+func is_squeeze(c: Vector2i) -> bool:
+	return _squeeze.has(c)
 
 
 # --- jobs ------------------------------------------------------------------------------
@@ -391,7 +489,8 @@ func _deal_tasks(tasks: Array, entry_cell: Vector2i, exit_cell: Vector2i) -> Arr
 				pool.remove_at(pi)
 				placed = true
 				break
-		assert(placed)
+		if not placed:
+			return []
 	return out
 
 
@@ -402,7 +501,7 @@ func _task_cell(rect: Rect2i) -> Vector2i:
 	for cy in range(rect.position.y, rect.end.y):
 		for cx in range(rect.position.x, rect.end.x):
 			var c := Vector2i(cx, cy)
-			if _solid.has(c) or not _open.has(c):
+			if _solid.has(c) or not _stand.has(c):
 				continue
 			any.append(c)
 			for d in [Vector2i.RIGHT, Vector2i.LEFT, Vector2i.DOWN, Vector2i.UP]:
@@ -428,12 +527,13 @@ func _room_centers() -> Array:
 		for cy in range(rect.position.y, rect.end.y):
 			for cx in range(rect.position.x, rect.end.x):
 				var c := Vector2i(cx, cy)
-				if _open.has(c) and not _solid.has(c):
+				if _stand.has(c) and not _solid.has(c):
 					var d := absi(c.x - mid.x) + absi(c.y - mid.y)
 					if d < best_d:
 						best_d = d
 						best = c
-		out.append(best)
+		if best_d < 9999:
+			out.append(best)
 	return out
 
 
@@ -487,7 +587,7 @@ func _deal_routes(count: int, entry_cell: Vector2i, centers: Array) -> Array:
 # --- dressing + painting ---------------------------------------------------------------
 
 func _dress_floor(exit_cell: Vector2i) -> void:
-	var cells: Array = _open.keys()
+	var cells: Array = _stand.keys()
 	var n := 0
 	var guard := 0
 	while n < 14 and guard < 400:
@@ -509,6 +609,8 @@ func _build_map_strings() -> void:
 				row += _furn[c]
 			elif _solid.has(c):
 				row += "#"
+			elif _squeeze.has(c):
+				row += "="
 			elif _neon.has(c):
 				row += "~"
 			elif _rug.has(c):
@@ -538,7 +640,7 @@ func _paint_tiles() -> void:
 	var src := TileSetAtlasSource.new()
 	src.texture = ATLAS
 	src.texture_region_size = Vector2i(TILE, TILE)
-	for t in 10:
+	for t in 11:
 		src.create_tile(Vector2i(t, 0))
 	# The source must be bound to the TileSet BEFORE any TileData touches
 	# physics (see level_builder.gd: the phase-through bug).
@@ -585,4 +687,6 @@ func _tile_for(x: int, y: int) -> int:
 			return T_CABINET
 		"c":
 			return T_CRATE
+		"=":
+			return T_CRAWL
 	return -1
