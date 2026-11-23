@@ -1,14 +1,12 @@
 class_name Pi
 extends CharacterBody3D
-## The PI in the flesh, built in the Klubnika cast: a murky near-black
-## silhouette, one pale featureless skull behind a bold shades band, and an
-## absurd oversized fedora riding the head like the party's cone rides its
-## square plate. Skinny arms hang off narrow shoulders and end in huge mitten
-## fists; the cigarette is the only saturated point on the whole body.
-## Every box face reads its own cell of the texture atlas (Godot's BoxMesh
-## UVs). The stride crossfades with the idle breath, cadence follows actual
-## speed, he banks into turns and leans into the walk, and the coat tails ride
-## a damped spring so they follow through on every start and stop.
+## The PI, cast the Klubnika way: pale putty skin, one dark maroon coat slab,
+## skinny segmented arms that end in huge mitten fists, and a small grim
+## skull behind wire glasses. The fedora is a steel plate riding the head,
+## the same way the party's cone rides its square plate. Every box face reads
+## its own cell of the texture atlas (Godot's BoxMesh UVs). The stride
+## crossfades with the idle breath, cadence follows real speed, he banks into
+## turns, and the coat tails ride a damped spring.
 ## He walks where the camera looks. No combat, no health - the office is a
 ## place to think, not to fight.
 
@@ -16,10 +14,10 @@ const MAT := preload("res://shaders/ps1_mat.gdshader")
 const SPEED := 4.6
 const TURN := 10.0
 
-const BAND := Color(0.24, 0.17, 0.12)   # the hat band, dark leather
-const SHOE := Color(0.10, 0.09, 0.12)
-const EMBER := Color(1.0, 0.36, 0.10)
-const CIG := Color(0.92, 0.9, 0.86)
+const BAND := Color(0.15, 0.11, 0.08)     # the hat band, dark leather
+const RIM := Color(0.10, 0.095, 0.09)     # wire glasses
+const EMBER := Color(0.85, 0.30, 0.10)
+const CIG := Color(0.90, 0.88, 0.82)
 
 var cam: Camera3D               # the office orbit cam; the walk follows it
 var _idle_t := 0.0              # the breath / glance clock, always running
@@ -34,6 +32,8 @@ var _leg_l: Node3D
 var _leg_r: Node3D
 var _arm_l: Node3D
 var _arm_r: Node3D
+var _fore_l: Node3D
+var _fore_r: Node3D
 var _tails: Node3D
 var _head: Node3D
 var _ember: MeshInstance3D
@@ -45,57 +45,74 @@ func _ready() -> void:
         collision_mask = 1
         var cs := CollisionShape3D.new()
         var shape := CapsuleShape3D.new()
-        shape.radius = 0.32
-        shape.height = 1.3
+        shape.radius = 0.34
+        shape.height = 1.6
         cs.shape = shape
-        cs.position = Vector3(0, 0.65, 0)
+        cs.position = Vector3(0, 0.85, 0)
         add_child(cs)
         _build_rig()
 
 
 func _build_rig() -> void:
-        # the Klubnika build: a narrow-shouldered dark slab, skinny hanging
-        # arms, huge mitten fists, a small pale skull that mostly disappears
-        # under the oversized fedora. No nose, no ears - the shades band and
-        # the cigarette carry the whole face.
+        # the Klubnika build: pale mannequin parts assembled from boxes, the coat
+        # one wide slab, the fists nearly as big as the arms they hang on, the
+        # face a small pale cell behind wire rims.
         _torso = Node3D.new()
         add_child(_torso)
-        _torso.position.y = 0.52
+        _torso.position.y = 0.92
         _leg_l = _pivot(_torso, Vector3(-0.11, 0.02, 0))
         _leg_r = _pivot(_torso, Vector3(0.11, 0.02, 0))
         for leg in [_leg_l, _leg_r]:
-                _box(leg, Vector3(0.16, 0.5, 0.2), Vector3(0, -0.25, 0), "pi_slacks")
-                _box(leg, Vector3(0.18, 0.1, 0.3), Vector3(0, -0.475, 0.05), "", SHOE)
+                _box(leg, Vector3(0.15, 0.40, 0.17), Vector3(0, -0.20, 0), "pi_slacks")
+                _box(leg, Vector3(0.13, 0.36, 0.15), Vector3(0, -0.585, 0), "pi_slacks")
+                _box(leg, Vector3(0.16, 0.115, 0.30), Vector3(0, -0.8625, 0.045), "pi_boot")
         # the hips fill the gap so no slit opens between the coat and the legs
-        _box(_torso, Vector3(0.42, 0.22, 0.3), Vector3(0, 0.13, 0), "pi_slacks")
-        _box(_torso, Vector3(0.46, 0.58, 0.36), Vector3(0, 0.45, 0), "pi_coat")
-        _tails = _pivot(_torso, Vector3(0, 0.14, -0.18))
-        _box(_tails, Vector3(0.42, 0.32, 0.1), Vector3(0, -0.16, 0), "pi_coat")
-        _arm_l = _pivot(_torso, Vector3(-0.31, 0.7, 0))
-        _arm_r = _pivot(_torso, Vector3(0.31, 0.7, 0))
+        _box(_torso, Vector3(0.40, 0.20, 0.28), Vector3(0, 0.10, 0), "pi_slacks")
+        _box(_torso, Vector3(0.50, 0.58, 0.32), Vector3(0, 0.48, 0), "pi_coat")
+        _tails = _pivot(_torso, Vector3(0, 0.16, -0.14))
+        _box(_tails, Vector3(0.42, 0.36, 0.09), Vector3(0, -0.18, 0), "pi_coat")
+        _arm_l = _pivot(_torso, Vector3(-0.30, 0.66, 0))
+        _arm_r = _pivot(_torso, Vector3(0.30, 0.66, 0))
         for arm in [_arm_l, _arm_r]:
-                _box(arm, Vector3(0.12, 0.5, 0.15), Vector3(0, -0.24, 0), "pi_sleeve")
+                _box(arm, Vector3(0.12, 0.34, 0.14), Vector3(0, -0.17, 0), "pi_coat")
+        var elbow := Vector3(0, -0.34, 0)
+        _fore_l = _pivot(_arm_l, elbow)
+        _fore_r = _pivot(_arm_r, elbow)
+        for fore in [_fore_l, _fore_r]:
+                _box(fore, Vector3(0.105, 0.30, 0.125), Vector3(0, -0.15, 0), "pi_coat")
                 # the mitten: a fist nearly as big as the arm it hangs on
-                _box(arm, Vector3(0.15, 0.15, 0.16), Vector3(0, -0.53, 0.01), "pi_glove")
-        _head = _pivot(_torso, Vector3(0, 0.83, 0))
+                _box(fore, Vector3(0.155, 0.17, 0.14), Vector3(0, -0.385, 0.005), "pi_hand")
+                for i in 4:                      # four fingers curling forward
+                        var f := _pivot(fore, Vector3(-0.0525 + i * 0.035, -0.40, 0.055))
+                        f.rotation.x = -0.45
+                        _box(f, Vector3(0.028, 0.085, 0.048), Vector3.ZERO, "pi_hand")
+        _head = _pivot(_torso, Vector3(0, 0.78, 0))
         # the neck plugs the skull into the coat so a glance never opens a gap
-        _box(_head, Vector3(0.13, 0.11, 0.13), Vector3(0, -0.09, 0), "pi_skin")
-        _box(_head, Vector3(0.27, 0.28, 0.26), Vector3(0, 0.06, 0), "pi_face")
+        _box(_head, Vector3(0.14, 0.10, 0.14), Vector3(0, -0.06, 0), "pi_skin")
+        _box(_head, Vector3(0.25, 0.26, 0.23), Vector3(0, 0.10, 0), "pi_face")
+        for ear in [-0.125, 0.125]:
+                _box(_head, Vector3(0.02, 0.06, 0.05),
+                                Vector3(ear, 0.10, 0.005), "pi_skin")
+        # wire glasses: a bridge strip and two rims, proud of the pale mug
+        _box(_head, Vector3(0.22, 0.018, 0.014), Vector3(0, 0.115, 0.124), "", RIM)
+        _box(_head, Vector3(0.062, 0.05, 0.014), Vector3(-0.058, 0.105, 0.122), "", RIM)
+        _box(_head, Vector3(0.062, 0.05, 0.014), Vector3(0.058, 0.105, 0.122), "", RIM)
         # the fedora: the identity prop, oversized the way the cone rides its
-        # plate - a wide slab brim, a dark band, a tall creased crown
+        # plate - a steel slab brim, a dark band, a tall felt crown
         var hat := _pivot(_head, Vector3.ZERO)
-        hat.rotation.x = 0.05
-        _box(hat, Vector3(0.42, 0.2, 0.4), Vector3(0, 0.32, 0), "pi_hat")
-        _box(hat, Vector3(0.44, 0.07, 0.42), Vector3(0, 0.245, 0), "", BAND)
-        _box(hat, Vector3(0.6, 0.04, 0.56), Vector3(0, 0.2, 0), "pi_hat")
+        hat.rotation.x = 0.04
+        _box(hat, Vector3(0.27, 0.14, 0.25), Vector3(0, 0.34, 0), "pi_hatcrown")
+        _box(hat, Vector3(0.29, 0.055, 0.27), Vector3(0, 0.282, 0), "", BAND)
+        _box(hat, Vector3(0.54, 0.05, 0.50), Vector3(0, 0.262, 0),
+                        "pi_hatplate", Color(0.62, 0.62, 0.58))
         # the cigarette: a white rod drooping from the lip corner, an ember that
         # pulses on its own rhythm and flares in the walk's wind
-        var cig := _pivot(_head, Vector3(0.055, -0.012, 0.13))
-        cig.rotation.x = -0.14
-        _box(cig, Vector3(0.024, 0.024, 0.1), Vector3(0, 0, 0.05), "", CIG)
-        _ember = _box(cig, Vector3(0.026, 0.026, 0.026), Vector3(0, 0, 0.105), "", EMBER)
+        var cig := _pivot(_head, Vector3(0.06, 0.03, 0.125))
+        cig.rotation.x = -0.12
+        _box(cig, Vector3(0.022, 0.022, 0.095), Vector3(0, 0, 0.045), "", CIG)
+        _ember = _box(cig, Vector3(0.022, 0.022, 0.022), Vector3(0, 0, 0.10), "", EMBER)
         var em := _ember.material_override as ShaderMaterial
-        em.set_shader_parameter("glow", 1.3)
+        em.set_shader_parameter("glow", 0.85)
 
 
 func _pivot(parent: Node3D, pos: Vector3) -> Node3D:
@@ -135,7 +152,6 @@ func _physics_process(delta: float) -> void:
         if wish.length() > 1.0:
                 wish = wish.normalized()
         wish *= SPEED
-        wish.x *= Run.mult("move_mult")
         velocity.x = move_toward(velocity.x, wish.x, 30.0 * delta)
         velocity.z = move_toward(velocity.z, wish.z, 30.0 * delta)
         velocity.y = -4.0
@@ -171,14 +187,18 @@ func _animate(delta: float) -> void:
         _leg_r.rotation.x = -sw * 0.55 * amp
         _arm_l.rotation.x = -sw * 0.42 * amp
         _arm_r.rotation.x = sw * 0.42 * amp
-        _arm_l.rotation.z = lerpf(0.03 + breathe * 0.02, 0.04, b)
-        _arm_r.rotation.z = lerpf(-0.03 - breathe * 0.02, -0.04, b)
+        _arm_l.rotation.z = lerpf(0.05 + breathe * 0.02, 0.06, b)
+        _arm_r.rotation.z = lerpf(-0.05 - breathe * 0.02, -0.06, b)
+        # forearms: a bent elbow at rest, one that barely moves - the puppet read
+        var bend := 0.14 + breathe * 0.02
+        _fore_l.rotation.x = bend
+        _fore_r.rotation.x = bend
         # torso: bob on the stride beat, breath at rest, bank and lean smoothed
-        _torso.position.y = 0.52 + lerpf(breathe * 0.012, absf(cos(_walk_t)) * 0.05 * frac, b)
+        _torso.position.y = 0.92 + lerpf(breathe * 0.012, absf(cos(_walk_t)) * 0.05 * frac, b)
         _torso.rotation.z = sw * 0.04 * amp + _lean
         _torso.rotation.x = _fwd_lean
         # head: scans the office at rest, steady on the move, counter-rolls a
-        # little so the shades stay level while the body banks
+        # little so the glasses stay level while the body banks
         _head.rotation.y = lerpf(sin(_idle_t * 0.35) * 0.35, sw * 0.05, b)
         _head.rotation.x = lerpf(breathe * 0.012, 0.03 * frac, b) - _fwd_lean * 0.6
         _head.rotation.z = -_torso.rotation.z * 0.55
@@ -193,7 +213,7 @@ func _animate(delta: float) -> void:
         # the ember breathes on its own rhythm and flares a little in the wind
         if _ember != null:
                 var em := _ember.material_override as ShaderMaterial
-                em.set_shader_parameter("glow", 0.75 + sin(_idle_t * 2.7) * 0.25 + frac * 0.15)
+                em.set_shader_parameter("glow", 0.5 + sin(_idle_t * 2.7) * 0.15 + frac * 0.12)
 
 
 func _damp(a: float, b: float, k: float, dt: float) -> float:
