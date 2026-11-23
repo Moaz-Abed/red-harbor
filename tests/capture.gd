@@ -20,7 +20,6 @@ func _ready() -> void:
                         _args[kv[0].trim_prefix("--")] = kv[1]
                 else:
                         _args[a.trim_prefix("--")] = "1"
-        Run.save_path = "user://capture_save.cfg"
         Run.ensure_case()
         var which: String = _args.get("scene", "office")
         var path: String = SCENES.get(which, which)
@@ -29,13 +28,17 @@ func _ready() -> void:
         var inst: Node = load(path).instantiate()
         if _args.has("seed") and inst.get("deal_seed") != null:
                 inst.set("deal_seed", int(_args["seed"]))
-                Run.save_path = "user://capture_seed_save.cfg"
         get_tree().root.add_child(inst)
         await get_tree().process_frame
         await get_tree().process_frame
         if _args.has("panel"):
                 if inst.has_method("open_panel"):
                         inst.open_panel(_args["panel"])
+        if _args.has("pause"):
+                (inst.get("_pause") as Node).open_menu()
+                Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
+        if _args.has("sub"):
+                inst.call("_flash_sub", _args["sub"])
         if _args.has("pos"):
                 # drop the PI somewhere else and let the follow cam drift over
                 var pp := str(_args["pos"]).split(",")
