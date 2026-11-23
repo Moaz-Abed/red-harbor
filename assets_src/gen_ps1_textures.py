@@ -533,172 +533,119 @@ def tex_news():
 
 
 def tex_pi_coat():
-    # the trench coat: dried-blood oxblood twill, painted per box face.
-    # front: double-breasted buttons + lapel overlap + pocket flaps.
-    # back: the vent seam and a belt hint. sides: pocket flap + side seam.
-    img, px = canvas((74, 33, 33))
-    for y in range(128):                  # the twill weave, whole sheet
+    # the trench coat in the Klubnika key: a murky near-black oxblood slab
+    # that sinks into the gloom. No tailoring noise - one bold coat-opening
+    # line down the front and a hem shade on every face. The silhouette does
+    # the work; the texture stays quiet.
+    img, px = canvas((44, 26, 25))
+    for y in range(128):                  # a faint twill, barely there
         for x in range(128):
             if (x + y) % 4 < 2:
-                px[x, y] = (66, 29, 29)
-            if (x * y) % 7 == 0:
-                px[x, y] = (58, 26, 26)
+                px[x, y] = (40, 23, 22)
+            if (x * y) % 9 == 0:
+                px[x, y] = (36, 21, 20)
     put, w, h = cell(px, "front")
-    for cy in range(h):                   # the lapel overlap, left edge
-        for cx in range(0, 6):
-            put(cx, cy, (52, 23, 23))
-        put(6, cy, (42, 18, 18))
-    for t in range(10):                   # the lapel fold, a short diagonal
-        put(7 + t, 6 + t, (42, 18, 18))
-    for by in (16, 28, 40):               # double-breasted button columns
-        for bx in (14, 27):
-            for cy in range(by, by + 4):
-                for cx in range(bx, bx + 4):
-                    put(cx, cy, (36, 16, 16))
-            put(bx + 1, by + 1, (88, 46, 44))
-    for cy in range(46, 52):              # the pocket flaps
-        for cx in list(range(5, 16)) + list(range(28, 39)):
-            put(cx, cy, (52, 23, 23))
-    for cx in list(range(5, 16)) + list(range(28, 39)):
-        put(cx, 52, (42, 18, 18))
-    for cy in range(61, 64):              # the hem shade
+    for cy in range(h):                   # the coat opening, one bold line
+        put(13, cy, (26, 15, 14))
+        put(14, cy, (26, 15, 14))
+    for cy in range(61, h):               # the hem shade
         for cx in range(w):
-            put(cx, cy, (58, 26, 26))
+            put(cx, cy, (32, 18, 17))
     put, w, h = cell(px, "back")
-    for cy in range(10, h):               # the vent seam
-        put(w // 2, cy, (42, 18, 18))
-    for cy in range(30, 33):              # the belt hint
+    for cy in range(61, h):
         for cx in range(w):
-            put(cx, cy, (58, 26, 26))
-    for cy in range(30, 33):              # the buckle
-        for cx in range(w // 2 - 2, w // 2 + 3):
-            put(cx, cy, (42, 18, 18))
-    for cy in range(61, 64):
-        for cx in range(w):
-            put(cx, cy, (58, 26, 26))
-    for side, seam_x in (("right", 1), ("left", None)):
+            put(cx, cy, (32, 18, 17))
+    for side in ("right", "left"):
         put, w, h = cell(px, side)
-        sx = seam_x if seam_x is not None else w - 2
-        for cy in range(h):               # the side seam at the front edge
-            put(sx, cy, (58, 26, 26))
-        for cy in range(46, 52):          # a pocket flap mid-panel
-            for cx in range(12, 31):
-                put(cx, cy, (52, 23, 23))
-        for cy in range(61, 64):
+        for cy in range(61, h):
             for cx in range(w):
-                put(cx, cy, (58, 26, 26))
+                put(cx, cy, (32, 18, 17))
     put, w, h = cell(px, "top")
     for cy in range(22, 42):              # the collar shadow on the shoulders
         for cx in range(12, 31):
-            put(cx, cy, (58, 26, 26))
-    fill_cell(px, "bottom", (46, 20, 20))
-    grain(px, 9)
+            put(cx, cy, (34, 20, 19))
+    fill_cell(px, "bottom", (28, 16, 15))
+    grain(px, 10)
     return dither(img)
 
 
 def tex_pi_sleeve():
-    # the coat's arms: same oxblood twill, no buttons - an elbow shine and
-    # a cuff seam low so the white glove meets a finished sleeve
-    img, px = canvas((74, 33, 33))
+    # the coat's arms: the same murky slab, a cuff seam low so the mitten
+    # meets a finished sleeve. Nothing else.
+    img, px = canvas((44, 26, 25))
     for y in range(128):
         for x in range(128):
             if (x + y) % 4 < 2:
-                px[x, y] = (66, 29, 29)
-            if (x * y) % 7 == 0:
-                px[x, y] = (58, 26, 26)
+                px[x, y] = (40, 23, 22)
+            if (x * y) % 9 == 0:
+                px[x, y] = (36, 21, 20)
     for side in ("front", "back", "right", "left"):
         put, w, h = cell(px, side)
-        for cy in range(26, 39):          # the elbow shine
-            for cx in range(w // 2 - 8, w // 2 + 9):
-                if random.random() < 0.35:
-                    put(cx, cy, (84, 40, 38))
         for cx in range(w):               # the cuff seam + cuff
-            put(cx, 54, (42, 18, 18))
+            put(cx, 54, (26, 15, 14))
             for cy in range(56, 64):
-                put(cx, cy, (58, 26, 26))
-    put, w, h = cell(px, "top")           # the shoulder catches the light
+                put(cx, cy, (32, 18, 17))
+    put, w, h = cell(px, "top")           # the shoulder catches a little light
     for cy in range(h):
         for cx in range(w):
             if (cx + cy) % 4 < 2:
-                put(cx, cy, (80, 38, 36))
-    fill_cell(px, "bottom", (46, 20, 20))
-    grain(px, 8)
+                put(cx, cy, (46, 27, 26))
+    fill_cell(px, "bottom", (28, 16, 15))
+    grain(px, 9)
     return dither(img)
 
 
 def tex_pi_slacks():
-    # charcoal wool, warm not blue: a pressed crease down every long face,
-    # a knee shine, a dark hem at the shoe
-    img, px = canvas((44, 41, 39))
+    # charcoal wool gone near-black in the murk: flat, with a dark hem at
+    # the shoe. No crease, no shine - legs read as one dark mass.
+    img, px = canvas((34, 32, 30))
     for y in range(128):
         for x in range(128):
             if (x + y) % 3 == 0:
-                px[x, y] = (39, 36, 34)
+                px[x, y] = (30, 28, 26)
     for side in ("front", "back", "right", "left"):
         put, w, h = cell(px, side)
-        for cy in range(h):               # the crease
-            put(w // 2 - 1, cy, (52, 49, 46))
-            put(w // 2, cy, (52, 49, 46))
-        for cy in range(26, 41):          # the knee shine
-            for cx in range(w // 2 - 8, w // 2 + 9):
-                if random.random() < 0.35:
-                    put(cx, cy, (56, 53, 50))
         for cy in range(61, 64):          # the hem
             for cx in range(w):
-                put(cx, cy, (36, 33, 31))
-    fill_cell(px, "bottom", (32, 29, 27))
-    grain(px, 7)
+                put(cx, cy, (24, 22, 21))
+    fill_cell(px, "bottom", (22, 20, 19))
+    grain(px, 8)
     return dither(img)
 
 
 def tex_pi_face():
-    # the PI's mug, painted per box face: front is the face under the shades,
-    # back and crown are hair, the sides carry the temple arm over an ear,
-    # the underside is a stubbled jaw. No more face on the back of his head.
-    skin = (172, 148, 118)
-    hair = (44, 36, 30)
+    # the PI's mug in the Klubnika key: a pale grey skull, nearly featureless,
+    # sunk half into shadow. The bold shades band carries the face; under it
+    # only a short flat mouth line. Hair caps the top and wraps the back, the
+    # temple arms run the sides. No stubble noise - the grime comes from the
+    # dither pass, not from speckle.
+    skin = (168, 156, 138)
+    hair = (36, 30, 26)
     img, px = canvas(skin)
     put, w, h = cell(px, "front")
-    for cy in range(0, 14):               # the hair, heavy over the brow
+    for cy in range(0, 12):               # the hair, heavy over the brow
         for cx in range(w):
             put(cx, cy, hair)
     for cx in range(w):                   # the ragged fringe line
         if random.random() < 0.5:
-            put(cx, 14, (54, 45, 38))
-    for cy in range(14, 39):              # the sideburns
-        for cx in (0, 1, 2, w - 3, w - 2, w - 1):
-            put(cx, cy, (42, 35, 29))
-    for cy in range(22, 34):              # the wrap-around shades
+            put(cx, 12, (44, 37, 32))
+    for cy in range(19, 35):              # the wrap-around shades, one bold band
         for cx in range(w):
-            put(cx, cy, (16, 15, 19))
+            put(cx, cy, (12, 12, 14))
     for cx in range(w):                   # the frame ridges
-        put(cx, 22, (10, 9, 12))
-        put(cx, 33, (10, 9, 12))
-    for cy in range(25, 31):              # the lens glare, two lenses
-        for cx in list(range(6, 18)) + list(range(25, 37)):
-            if (cx + cy) % 6 < 2:
-                put(cx, cy, (44, 48, 56))
-    for cy in range(36, 45):              # the nose shadow (a nose box sits here)
-        for cx in range(19, 24):
-            put(cx, cy, (158, 132, 102))
-    put(18, 44, (140, 112, 86))
-    put(24, 44, (140, 112, 86))
-    for cx in range(13, 30):              # the mouth, a flat tired line
-        put(cx, 48, (130, 82, 70))
-        put(cx, 49, (130, 82, 70))
-    put(12, 49, (110, 68, 58))            # the corners droop
-    put(30, 49, (110, 68, 58))
-    for cx in range(15, 28):              # the lower lip catches light
-        put(cx, 50, (186, 158, 126))
-    for cy in range(53, 64):              # the jaw stubble
-        for cx in range(3, 40):
-            if random.random() < 0.45:
-                put(cx, cy, (146, 122, 96))
-    for cy in range(36, 53):              # the cheek shade at the edges
-        for cx in (0, 1, 2, 3, w - 4, w - 3, w - 2, w - 1):
-            put(cx, cy, (160, 136, 106))
-    # the sides: hair on top, sideburn at the front edge, the temple arm
-    # running back over an ear, stubble along the jaw, hair wrapping the back
+        put(cx, 19, (8, 8, 10))
+        put(cx, 34, (8, 8, 10))
+    for cy in range(23, 30):              # one lens glare wedge, off center
+        for cx in range(7, 19):
+            if (cx + cy) % 5 < 2:
+                put(cx, cy, (36, 40, 48))
+    for cx in range(15, 29):              # the mouth, a short flat line
+        put(cx, 47, (120, 96, 82))
+        put(cx, 48, (120, 96, 82))
+    put(14, 48, (104, 82, 70))            # the corners droop
+    put(30, 48, (104, 82, 70))
+    # the sides: hair cap, hair wrapping the back edge, the temple arm running
+    # front to back. Flat pale skin below - no ear, no stubble.
     for side in ("right", "left"):
         put, w, h = cell(px, side)
         front_left = side == "right"      # which image edge is his front
@@ -706,154 +653,120 @@ def tex_pi_face():
         def fx(cx, fl=front_left, ww=w):
             return cx if fl else ww - 1 - cx
 
-        for cy in range(0, 17):           # the hair cap
+        for cy in range(0, 15):           # the hair cap
             for cx in range(w):
                 put(cx, cy, hair)
-        for cy in range(17, 51):          # hair wraps the back edge
-            for cx in range(w - 8, w):
-                put(fx(cx), cy, (42, 35, 29))
-        for cy in range(17, 41):          # the sideburn at the front edge
-            for cx in range(0, 6):
-                put(fx(cx), cy, (42, 35, 29))
-        for cy in range(24, 30):          # the temple arm, front to ear
-            for cx in range(0, 23):
-                put(fx(cx), cy, (16, 15, 19))
-        for cx in range(0, 23):
-            put(fx(cx), 24, (10, 9, 12))
-        for cy in range(30, 43):          # the ear (an ear box sits here)
-            for cx in range(20, 28):
-                put(fx(cx), cy, (158, 132, 102))
-        for cy in range(33, 40):
-            for cx in range(22, 26):
-                put(fx(cx), cy, (140, 112, 86))
-        for cy in range(50, 64):          # the jaw stubble
-            for cx in range(0, 33):
-                if random.random() < 0.45:
-                    put(fx(cx), cy, (146, 122, 96))
-        for cy in range(58, 64):          # the neck shade at the back low
-            for cx in range(28, w):
-                put(fx(cx), cy, (150, 126, 98))
+        for cy in range(15, 51):          # hair wraps the back edge
+            for cx in range(w - 7, w):
+                put(fx(cx), cy, (32, 27, 23))
+        for cy in range(21, 28):          # the temple arm, front to back
+            for cx in range(0, w - 7):
+                put(fx(cx), cy, (12, 12, 14))
+        for cx in range(0, w - 7):
+            put(fx(cx), 21, (8, 8, 10))
     put, w, h = cell(px, "back")
-    for cy in range(0, 51):               # the back of the head is hair
+    for cy in range(0, 46):               # the back of the head is hair
         for cx in range(w):
             put(cx, cy, hair)
-            if (cx * cy) % 5 == 0:
-                put(cx, cy, (50, 42, 35))
-    for cx in range(w):                   # the ragged hairline at the nape
-        if random.random() < 0.5:
-            put(cx, 51, (54, 45, 38))
-    for cy in range(52, 64):              # the nape, stubbled skin
-        for cx in range(w):
-            if random.random() < 0.5:
-                put(cx, cy, (146, 122, 96))
+            if (cx * cy) % 6 == 0:
+                put(cx, cy, (42, 35, 30))
+    for cx in range(w):                   # a clean hairline at the nape
+        put(cx, 46, (44, 37, 32))
     put, w, h = cell(px, "top")
     for cy in range(h):                   # the crown under the fedora
         for cx in range(w):
             put(cx, cy, hair)
-            if (cx + cy) % 4 < 1:
-                put(cx, cy, (50, 42, 35))
+            if (cx + cy) % 5 < 1:
+                put(cx, cy, (42, 35, 30))
     put, w, h = cell(px, "bottom")
-    for cy in range(h):                   # under the jaw: stubble + neck
-        for cx in range(w):
-            if random.random() < 0.6:
-                put(cx, cy, (146, 122, 96))
-    for cy in range(20, 45):
-        for cx in range(14, 29):
-            put(cx, cy, (150, 126, 98))
-    grain(px, 6)
+    for cy in range(20, 44):              # the neck patch under the jaw
+        for cx in range(15, 28):
+            put(cx, cy, (150, 138, 122))
+    grain(px, 7)
     return dither(img)
 
 
 def tex_pi_skin():
-    # plain skin for the nose, ears and neck: warm tone, a shade low so the
-    # small boxes still read as form under the Gouraud light
-    img, px = canvas((172, 148, 118))
+    # plain skin for the neck: the same pale grey tone, a shade low so the
+    # small box still reads as form under the Gouraud light
+    img, px = canvas((168, 156, 138))
     for side in CELL_RECT:
         put, w, h = cell(px, side)
         for cy in range(h - 10, h):
             for cx in range(w):
-                put(cx, cy, (160, 136, 106))
-    grain(px, 5)
-    return dither(img)
-
-
-def tex_pi_hat():
-    # the fedora: tan straw felt, coarse weave, a crown crease on the long
-    # faces, a pinched dent on top, the brim edge frayed and shaded under
-    img, px = canvas((146, 112, 70))
-    for y in range(128):
-        for x in range(128):
-            if (x + y) % 5 == 0:
-                px[x, y] = (134, 102, 62)
-            if (x * y) % 11 == 0:
-                px[x, y] = (122, 92, 56)
-    for side in ("front", "back", "right", "left"):
-        put, w, h = cell(px, side)
-        for cx in range(w):               # the crown crease
-            put(cx, 8, (108, 80, 48))
-            put(cx, 9, (108, 80, 48))
-        for cy in range(58, 64):          # the brim edge, frayed
-            for cx in range(w):
-                put(cx, cy, (116, 86, 52))
-                if random.random() < 0.3:
-                    put(cx, cy, (104, 76, 46))
-    put, w, h = cell(px, "top")
-    for cx in range(w):                   # the front edge shade
-        put(cx, 0, (122, 92, 56))
-        put(cx, 1, (122, 92, 56))
-    for cy in range(4, 29):               # the center dent
-        put(w // 2 - 1, cy, (108, 80, 48))
-        put(w // 2, cy, (108, 80, 48))
-    for t in range(16):                   # the pinch, two folds forward
-        put(w // 2 - 8 + t // 2, 4 + t, (108, 80, 48))
-        put(w // 2 + 8 - t // 2, 4 + t, (108, 80, 48))
-    put, w, h = cell(px, "bottom")
-    for cy in range(h):                   # the brim underside
-        for cx in range(w):
-            put(cx, cy, (104, 76, 46))
-            if (cx + cy) % 5 == 0:
-                put(cx, cy, (96, 70, 42))
+                put(cx, cy, (150, 138, 122))
     grain(px, 6)
     return dither(img)
 
 
+def tex_pi_hat():
+    # the fedora: grim straw gone murky, coarse weave, a bold crown crease on
+    # the long faces, a pinched dent on top, the brim edge frayed and shaded
+    # under. It is the identity prop - it reads big and grim, not dapper.
+    img, px = canvas((112, 88, 56))
+    for y in range(128):
+        for x in range(128):
+            if (x + y) % 5 == 0:
+                px[x, y] = (104, 80, 50)
+            if (x * y) % 11 == 0:
+                px[x, y] = (96, 74, 46)
+    for side in ("front", "back", "right", "left"):
+        put, w, h = cell(px, side)
+        for cx in range(w):               # the crown crease
+            put(cx, 8, (88, 66, 40))
+            put(cx, 9, (88, 66, 40))
+        for cy in range(58, 64):          # the brim edge, frayed
+            for cx in range(w):
+                put(cx, cy, (94, 72, 44))
+                if random.random() < 0.3:
+                    put(cx, cy, (84, 62, 38))
+    put, w, h = cell(px, "top")
+    for cx in range(w):                   # the front edge shade
+        put(cx, 0, (94, 72, 44))
+        put(cx, 1, (94, 72, 44))
+    for cy in range(4, 29):               # the center dent
+        put(w // 2 - 1, cy, (88, 66, 40))
+        put(w // 2, cy, (88, 66, 40))
+    for t in range(16):                   # the pinch, two folds forward
+        put(w // 2 - 8 + t // 2, 4 + t, (88, 66, 40))
+        put(w // 2 + 8 - t // 2, 4 + t, (88, 66, 40))
+    put, w, h = cell(px, "bottom")
+    for cy in range(h):                   # the brim underside
+        for cx in range(w):
+            put(cx, cy, (84, 62, 38))
+            if (cx + cy) % 5 == 0:
+                put(cx, cy, (76, 56, 34))
+    grain(px, 9)
+    return dither(img)
+
+
 def tex_pi_glove():
-    # the white glove: off-white leather, knuckle dents on the front, a seam,
-    # a cuff band low where it meets the sleeve
-    img, px = canvas((206, 200, 188))
+    # the mitten: bone leather, grimy. One bold center seam and a cuff band
+    # low where it meets the sleeve. The chunky box shape does the rest.
+    img, px = canvas((188, 180, 168))
     for y in range(128):
         for x in range(128):
             if (x + y) % 6 == 0:
-                px[x, y] = (196, 190, 178)
+                px[x, y] = (178, 170, 158)
     for side in ("front", "back"):
         put, w, h = cell(px, side)
-        for (kx, ky) in ((w // 2 - 12, 10), (w // 2, 7), (w // 2 + 12, 10)):
-            for cy in range(ky, ky + 8):  # the knuckle dents
-                for cx in range(kx - 5, kx + 6):
-                    if math.hypot(cx - kx, (cy - ky) * 1.6) < 5:
-                        put(cx, cy, (178, 172, 162))
         for cy in range(18, 52):          # the center seam
-            put(w // 2, cy, (162, 156, 146))
+            put(w // 2, cy, (152, 144, 134))
         for cx in range(w):               # the cuff
-            put(cx, 52, (162, 156, 146))
+            put(cx, 52, (152, 144, 134))
             for cy in range(53, 64):
-                put(cx, cy, (186, 180, 170))
+                put(cx, cy, (170, 162, 150))
     for side in ("right", "left"):
         put, w, h = cell(px, side)
         for cy in range(0, 52):
-            put(2, cy, (162, 156, 146))
+            put(2, cy, (152, 144, 134))
         for cx in range(w):
-            put(cx, 52, (162, 156, 146))
+            put(cx, 52, (152, 144, 134))
             for cy in range(53, 64):
-                put(cx, cy, (186, 180, 170))
-    put, w, h = cell(px, "top")
-    for kx in (w // 2 - 12, w // 2, w // 2 + 12):
-        for cy in range(26, 38):          # knuckles from above
-            for cx in range(kx - 5, kx + 6):
-                if math.hypot(cx - kx, (cy - 32) * 1.2) < 5:
-                    put(cx, cy, (178, 172, 162))
-    fill_cell(px, "bottom", (170, 164, 154))
-    grain(px, 5)
+                put(cx, cy, (170, 162, 150))
+    fill_cell(px, "top", (180, 172, 160))
+    fill_cell(px, "bottom", (162, 154, 144))
+    grain(px, 7)
     return dither(img)
 
 
@@ -884,6 +797,90 @@ def tex_fan():
     grain(px, 5)
     return dither(img)
 
+
+
+
+# --- casefile: a manila dossier cover, painted with the PS1 crunch ----------------
+def tex_casefile():
+    img, px = canvas(WALNUT)
+    for y in range(128):
+        for x in range(128):
+            # worn manila base
+            d = BAYER[y % 4][x % 4] / 16.0
+            shade = int(165 + d * 20 - abs(x - 64) * 0.3)
+            g_shade = int(128 + d * 15 - abs(x - 64) * 0.2)
+            b_shade = int(72 + d * 8)
+            px[x, y] = (
+                max(0, min(255, shade)),
+                max(0, min(255, g_shade)),
+                max(0, min(255, b_shade)),
+            )
+    # label block
+    for y in range(8, 30):
+        for x in range(8, 120):
+            shade = 215 if 10 <= y <= 28 else 180
+            px[x, y] = (shade, shade - 12, shade - 40)
+    # horizontal rules — fields to fill in
+    for li in range(5):
+        for x in range(10, 118):
+            py2 = 36 + li * 14
+            px[x, py2] = (110, 85, 52)
+    # CLASSIFIED stamp in state red
+    for y in range(80, 100):
+        for x in range(60, 118):
+            px[x, y] = (160, 28, 24) if (y in (80, 99) or x in (60, 117)) else (140, 24, 20)
+    # corner fold
+    for dy in range(18):
+        for dx in range(18 - dy):
+            px[127 - dx, dy] = WALNUT_D
+    grain(px, 10)
+    return dither(img)
+
+
+# --- case_indicator: a small ring that pulses in the HUD when the case is new ---
+def tex_case_indicator():
+    img, px = canvas(INK)
+    cx, cy = 64, 64
+    for y in range(128):
+        for x in range(128):
+            r = math.hypot(x - cx, y - cy)
+            if 50 <= r <= 62:
+                a = math.atan2(y - cy, x - cx)
+                # arc from -PI to 0 (top to right) = "time remaining" meter
+                frac = (a + math.pi) / (math.pi * 2.0)
+                if frac < 0.75:
+                    px[x, y] = OXBLOOD
+                else:
+                    px[x, y] = (80, 20, 15)
+            elif r < 50:
+                px[x, y] = INK
+    grain(px, 5)
+    return dither(img)
+
+
+# --- ringing_phone: an overlay icon lit up when the phone is ringing ------------
+def tex_phone_ring():
+    # the same phone silhouette as tex_phone but bright, with sound-wave arcs
+    img, px = canvas(INK)
+    # handset shadow
+    for y in range(44, 68):
+        for x in range(18, 110):
+            if (18 <= x <= 40 or 88 <= x <= 110) and 44 <= y <= 68:
+                px[x, y] = BONE
+            elif 40 <= x <= 88 and 50 <= y <= 62:
+                px[x, y] = BONE
+    # arc wave: two arcs radiating from the bell
+    for step in range(2):
+        base_r = 20 + step * 16
+        for deg in range(-60, 61, 2):
+            a = math.radians(deg)
+            for r in range(base_r, base_r + 8):
+                xp = int(64 + math.cos(a) * r)
+                yp = int(20 + math.sin(a) * r)
+                if 0 <= xp < 128 and 0 <= yp < 128:
+                    px[xp, yp] = SODIUM
+    grain(px, 8)
+    return dither(img)
 
 TEXTURES = {
     "floor": tex_floor,
@@ -916,6 +913,9 @@ TEXTURES = {
     "pi_hat": tex_pi_hat,
     "pi_glove": tex_pi_glove,
     "fan": tex_fan,
+    "casefile": tex_casefile,
+    "case_indicator": tex_case_indicator,
+    "phone_ring": tex_phone_ring,
 }
 
 os.makedirs(OUT, exist_ok=True)

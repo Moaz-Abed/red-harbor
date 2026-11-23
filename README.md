@@ -46,8 +46,10 @@ scripts/
   run_state.gd      autoload "Run": the case bag, boons, favors, shop, save file
   office.gd         the office scene: world build, HUD, panels, input
   office_room.gd    the PS1 diorama: the MAP legend extruded into boxes
-  pi3d.gd           the PI: a low-poly box rig, WASD + move_and_slide; the
-                    stride crossfades with idle, tails ride a damped spring
+  pi3d.gd           the PI: a low-poly box rig in the Klubnika cast - a murky
+                    slab, a pale featureless skull behind a bold shades band,
+                    an oversized fedora, huge mitten fists, one ember accent;
+                    the stride crossfades with idle, tails ride a damped spring
   pause_menu.gd     the ESC overlay
   menu.gd           the title screen: spring logo behind a CRT tube
   comps/ps1_view.gd the low-res viewport + post chain

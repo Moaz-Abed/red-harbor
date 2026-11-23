@@ -1,0 +1,26 @@
+{
+  "note": "Three textures generated with SpriteCook (gpt-image-2, 128x128, PS1 Soviet-noir style). Download each PNG from the signed URL and drop it into assets/tex/ alongside the procedural textures from gen_ps1_textures.py. The signed URLs expire — regenerate from the asset IDs at https://app.spritecook.ai.",
+  "assets": [
+    {
+      "name": "wall_scook.png",
+      "description": "PS1 Soviet-brutalist office wall — aged plaster, water stains, propaganda remnants",
+      "asset_id": "70546ecb-1ee3-4d98-8bc3-f3ffc3005582",
+      "size": "128x128",
+      "usage": "optional replacement for wall.png, or a second wall variant for the room corners"
+    },
+    {
+      "name": "floor_scook.png",
+      "description": "PS1 Soviet office linoleum — dark charcoal, scuffed, cigarette burns",
+      "asset_id": "6ef08d92-288a-4488-9252-984c6f6d0c8e",
+      "size": "128x128",
+      "usage": "optional replacement for floor.png"
+    },
+    {
+      "name": "corkboard_scook.png",
+      "description": "PS1 detective pinboard — paper clippings, red strings, Soviet stamps",
+      "asset_id": "50e82734-6731-4950-aa4d-5fede53b1a22",
+      "size": "256x256 (downsample to 128x128)",
+      "usage": "replacement for corkboard.png for the case-board interaction spot"
+    }
+  ]
+}

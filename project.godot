@@ -23,6 +23,7 @@ config/icon="res://icon.svg"
 [autoload]
 
 Run="*res://scripts/run_state.gd"
+Ambient="*res://scripts/ambient_events.gd"
 
 [display]
 
