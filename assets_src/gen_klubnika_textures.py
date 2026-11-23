@@ -17,8 +17,8 @@ SPRITES = os.path.join(os.path.dirname(__file__), "..", "assets", "sprites")
 FONT_DIR = "/usr/share/fonts/truetype/dejavu"
 
 # the murk
-PUTTY = (188, 180, 163)
-PUTTY_D = (148, 140, 123)
+PUTTY = (170, 162, 146)
+PUTTY_D = (134, 127, 111)
 BONE = (214, 206, 190)
 GREY_G = (98, 106, 90)      # soviet green-grey paint
 GREY_GD = (62, 68, 56)
@@ -33,7 +33,7 @@ WOOD_D = (52, 39, 27)
 BLACK = (24, 22, 20)
 AMBER = (208, 146, 60)
 PHOS = (126, 170, 94)
-CITY = (26, 30, 42)
+CITY = (36, 42, 56)
 RUST = (108, 62, 34)
 SLIME = (72, 84, 58)
 
@@ -321,11 +321,11 @@ def tex_ceiling():
 
 def tex_door():
     # steel door: brushed streaks, dents, rust blooming at the bottom
-    img, px = canvas(GREY_G)
+    img, px = canvas(CONC)
     for _ in range(40):        # horizontal brush
         y = random.randint(0, 127)
         scratch(px, random.randint(0, 100), y, random.randint(10, 28),
-                GREY_GD if random.random() < 0.6 else BLACK, 0.3)
+                CONC_D if random.random() < 0.6 else BLACK, 0.3)
     for _ in range(6):         # dents
         blob(px, random.uniform(10, 118), random.uniform(10, 110),
              random.uniform(3, 7), IRON_D, 0.3)
@@ -351,12 +351,12 @@ def tex_window():
         top = 128 - h
         for yy in range(top, 128):
             for xx in range(x, min(128, x + w)):
-                px[xx, yy] = tuple(max(0, c - 6) for c in CITY)
-        for _ in range(random.randint(0, 4)):   # lit windows, sparse
-            wx = random.randint(x + 2, max(x + 2, min(127, x + w - 3)))
+                px[xx, yy] = (20, 23, 32)
+        for _ in range(random.randint(2, 7)):   # lit windows, sparse
+            wx = random.randint(x + 2, max(x + 2, min(127, x + w - 4)))
             wy = random.randint(top + 3, 122)
-            for yy in range(wy, min(126, wy + 2)):
-                for xx in range(wx, min(126, wx + 2)):
+            for yy in range(wy, min(126, wy + 3)):
+                for xx in range(wx, min(126, wx + 3)):
                     px[xx, yy] = AMBER
         x += w + random.randint(0, 4)
     for _ in range(60):        # rain streaks
@@ -389,7 +389,7 @@ def tex_corkboard():
 
 def tex_desk():
     # the heavy top: long scratches, cup rings, burn spots, worn edges
-    img, px = canvas(WOOD_D)
+    img, px = canvas(WOOD)
     for y in range(0, 128, 4): # grain
         for x in range(128):
             if random.random() < 0.35:
@@ -692,9 +692,9 @@ def tex_pi_hand():
 
 
 def tex_pi_hatplate():
-    # the plate brim: grimy grey-green steel with corner rivets - the cone's
-    # square plate, worn as a hat
-    img, px = canvas(GREY_G)
+    # the plate brim: dark iron-grey steel, smooth except for the corner
+    # rivets and a faint edge wear - metal, not wood
+    img, px = canvas((66, 70, 62))
 
     def top(put, w, h):
         for rx, ry in ((5, 5), (w - 6, 5), (5, h - 6), (w - 6, h - 6)):
@@ -702,19 +702,18 @@ def tex_pi_hatplate():
                 for xx in range(rx - 2, rx + 2):
                     put(xx, yy, IRON_D)
         for xx in range(w):
-            put(xx, 0, GREY_GD)
-            put(xx, h - 1, GREY_GD)
+            put(xx, 0, (48, 52, 46))
+            put(xx, h - 1, (48, 52, 46))
         for yy in range(h):
-            put(0, yy, GREY_GD)
-            put(w - 1, yy, GREY_GD)
+            put(0, yy, (48, 52, 46))
+            put(w - 1, yy, (48, 52, 46))
 
     plain = {n: (lambda put, w, h: None) for n in
              ("front", "right", "back", "left", "bottom")}
-    fill_cells(img, px, GREY_G, {"top": top, **plain})
-    for name in CELL_RECT:
-        img_crop_grime(*CELL_RECT[name], px, False)
-    scratches(px, 10, BLACK, 0.4)
-    noise(px, 9)
+    fill_cells(img, px, (66, 70, 62), {"top": top, **plain})
+    stains(px, 2, [IRON_D], 4, 9, 0.2)
+    scratches(px, 4, BLACK, 0.25, ln_max=8)
+    noise(px, 6)
     save("pi_hatplate", dither(img))
 
 
