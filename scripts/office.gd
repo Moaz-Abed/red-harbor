@@ -1,62 +1,59 @@
 extends Node3D
-## The PI's office, the whole game for now: a walkable PS1-era diorama. Read
-## the dealt case at the desk, buy permanent upgrades at the file wall, pick
-## boons at the informant's radio, deal the next file at the neon door.
+## The PI's office, the whole game for now: a walkable diorama in the
+## Klubnika cast. Read the dealt case at the desk, take the informant's call
+## when the phone rings, read the board, deal the next file at the steel
+## door. The HUD is terminal white on black bars, mono type throughout.
 
 const PS1_VIEW := preload("res://scripts/comps/ps1_view.gd")
 const ROOM := preload("res://scripts/office_room.gd")
 const PAUSE_MENU := preload("res://scenes/pause_menu.tscn")
 const GRAIN := preload("res://shaders/grain.gdshader")
+const MONO := preload("res://assets/fonts/DejaVuSansMono.ttf")
 
-const SPAWN := Vector3(20.5, 0.1, 18.5)
+const SPAWN := Vector3(14.0, 0.1, 12.2)
 const PIVOT := Vector3(0, 1.3, 0)       # the lens orbits the PI's chest
 const CAM_DIST := 5.0
 const CAM_PITCH_MIN := -0.45            # floor graze .. near the ceiling
 const CAM_PITCH_MAX := 1.0
-const CAM_MIN := Vector3(1.45, 0.55, 1.45)   # the lens stays in the office
-const CAM_MAX := Vector3(38.55, 2.55, 20.55)
+const CAM_MIN := Vector3(1.3, 0.5, 1.3)     # the lens stays in the office
+const CAM_MAX := Vector3(26.7, 2.7, 15.45)
 const LOOK_SENS := 0.0042
 const REACH := 1.7
 
-# legend cells carried over from the 2D room: the spots you can use.
 const SPOTS := {
-        "case": {"cell": Vector2i(16, 10), "label": "READ THE CASE FILE"},
-        "drawer": {"cell": Vector2i(6, 6), "label": "THE FILE WALL - UPGRADES"},
-        "radio": {"cell": Vector2i(33, 4), "label": "THE INFORMANT'S RADIO"},
-        "door": {"cell": Vector2i(37, 11), "label": "DEAL THE NEXT CASE"},
+        "case": {"label": "READ THE CASE FILE"},
+        "phone": {"label": "ANSWER THE PHONE"},
+        "board": {"label": "READ THE BOARD"},
+        "door": {"label": "DEAL THE NEXT CASE"},
 }
-const INK := Color("14121c")
-const BONE := Color("ded6c7")
-const SODIUM := Color("e8b366")
-const RED := Color("e85145")
-const FOG := Color("a79bb0")
-const SLATE := Color("4a4e69")
-const PANEL := Color("1c1a2a")
+const WHITE := Color("d8d2c4")
+const GREY := Color("7e7d74")
+const AMBER := Color("d0923c")
+const RED := Color("b04a3a")
+const PANEL_INK := Color("0a0a0a")
+const PANEL_EDGE := Color("3a3a34")
 
 var deal_seed := -1              # >= 0 pins tonight's deal (tests / QA)
-var boon_offers: Array[Dictionary] = []
 var _player: Pi
 var _pause: CanvasLayer
-var _panel_kind := ""            # "" | case | shop | boons
-var _selected := 0
+var _panel_kind := ""            # "" | case | phone | board
 var _hud: CanvasLayer
 var _case_line: Label
 var _prompt: Label
-var _foot: Label
+var _sub_bar: ColorRect
+var _sub: Label
+var _sub_t := 99.0
 var _panel: Control
 var _panel_title: Label
 var _panel_body: Label
 var _panel_hint: Label
-var _card_edges: Array[ColorRect] = []
-var _card_backs: Array[ColorRect] = []
-var _card_bodies: Array[Label] = []
 var _rain: Array[Vector2] = []
 var _rain_canvas: Control
 var _room: OfficeRoom
 var _view: Ps1View
 var _cam_pos: Vector3
 var _yaw := 0.0
-var _pitch := 0.3
+var _pitch := 0.22
 
 
 func _ready() -> void:
@@ -73,118 +70,86 @@ func _ready() -> void:
         _pause = PAUSE_MENU.instantiate()
         add_child(_pause)
         Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
+        Ambient.begin_office()
+        Ambient.phone_ring.connect(_on_ring)
+        Ambient.ambient_line.connect(_on_line)
+
+
+func _exit_tree() -> void:
+        Ambient.end_office()
 
 
 func _build_world() -> void:
         var env := WorldEnvironment.new()
         var e := Environment.new()
         e.background_mode = Environment.BG_COLOR
-        e.background_color = Color(0.02, 0.02, 0.04)
+        e.background_color = Color(0.015, 0.02, 0.016)
         e.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
         e.ambient_light_sky_contribution = 0.0
-        e.ambient_light_color = Color(0.36, 0.36, 0.40)
-        e.ambient_light_energy = 14.0
+        e.ambient_light_color = Color(0.30, 0.33, 0.30)
+        e.ambient_light_energy = 4.0
         e.fog_enabled = true
-        e.fog_light_color = Color(0.03, 0.03, 0.06)
-        e.fog_density = 0.013
+        e.fog_light_color = Color(0.02, 0.025, 0.02)
+        e.fog_density = 0.018
         env.environment = e
-        var sun := DirectionalLight3D.new()
-        sun.light_color = Color(0.72, 0.80, 1.0)
-        sun.light_energy = 0.9
-        sun.rotation_degrees = Vector3(-58, 165, 0)
-        add_child(sun)
-        var desk_lamp := OmniLight3D.new()
-        desk_lamp.position = Vector3(18, 2.3, 8)
-        desk_lamp.omni_range = 11.0
-        desk_lamp.light_color = Color(1.0, 0.76, 0.46)
-        desk_lamp.light_energy = 2.9
-        add_child(desk_lamp)
-        var neon := OmniLight3D.new()
-        neon.position = Vector3(37.5, 1.6, 11)
-        neon.omni_range = 8.0
-        neon.light_color = Color(1.0, 0.45, 0.55)
-        neon.light_energy = 1.7
-        add_child(neon)
-        var window_cold := OmniLight3D.new()
-        window_cold.position = Vector3(20, 2.0, 3)
-        window_cold.omni_range = 13.0
-        window_cold.light_color = Color(0.55, 0.72, 0.95)
-        window_cold.light_energy = 0.65
-        add_child(window_cold)
-        var fill := OmniLight3D.new()              # the overhead bulb, room center
-        fill.position = Vector3(20, 2.8, 13)
-        fill.omni_range = 16.0
-        fill.light_color = Color(0.80, 0.78, 0.90)
-        fill.light_energy = 3.2
-        add_child(fill)
-        var door_bulb := OmniLight3D.new()         # the second bulb, door half
-        door_bulb.position = Vector3(20, 2.8, 18.5)
-        door_bulb.omni_range = 9.0
-        door_bulb.light_color = Color(0.85, 0.82, 0.95)
-        door_bulb.light_energy = 2.4
-        add_child(door_bulb)
-        var east_bulb := OmniLight3D.new()         # the third bulb, east half
-        east_bulb.position = Vector3(30, 2.8, 9)
-        east_bulb.omni_range = 12.0
-        east_bulb.light_color = Color(0.85, 0.82, 0.95)
-        east_bulb.light_energy = 2.2
-        add_child(east_bulb)
-        for sx in [10.0, 26.0]:                    # the sconce pools on the north wall
-                var sconce := OmniLight3D.new()
-                sconce.position = Vector3(sx, 2.3, 2.0)
-                sconce.omni_range = 5.5
-                sconce.light_color = Color(1.0, 0.82, 0.55)
-                sconce.light_energy = 1.0
-                add_child(sconce)
-        var lamp := OmniLight3D.new()              # the floor lamp by the chair
-        lamp.position = Vector3(19.2, 2.1, 16.9)
-        lamp.omni_range = 6.0
-        lamp.light_color = Color(1.0, 0.80, 0.52)
-        lamp.light_energy = 0.9
-        add_child(lamp)
-        var desk_pool := OmniLight3D.new()         # the desk lamp's own pool
-        desk_pool.position = Vector3(15.5, 2.0, 7.9)
-        desk_pool.omni_range = 4.0
-        desk_pool.light_color = Color(1.0, 0.82, 0.55)
-        desk_pool.light_energy = 0.7
-        add_child(desk_pool)
-        var bar := OmniLight3D.new()               # the bottle shelf, west wall
-        bar.position = Vector3(1.8, 1.6, 13.0)
-        bar.omni_range = 4.5
-        bar.light_color = Color(0.9, 0.78, 0.55)
-        bar.light_energy = 1.1
-        add_child(bar)
-        for wx in [8.0, 32.0]:                     # the cold pools at the outer panes
+        # the cold heart: the hanging tube over the center
+        var tube := OmniLight3D.new()
+        tube.position = Vector3(14, 2.55, 8)
+        tube.omni_range = 10.0
+        tube.light_color = Color(0.72, 0.82, 0.68)
+        tube.light_energy = 2.8
+        add_child(tube)
+        # the warm heart: the bulb over the desk
+        var bulb := OmniLight3D.new()
+        bulb.position = Vector3(14.2, 2.45, 9.5)
+        bulb.omni_range = 7.0
+        bulb.light_color = Color(1.0, 0.74, 0.42)
+        bulb.light_energy = 2.6
+        add_child(bulb)
+        # the amber hatch over the door slot, and its pool on the steel
+        var hatch := OmniLight3D.new()
+        hatch.position = Vector3(26.6, 1.7, 8)
+        hatch.omni_range = 3.5
+        hatch.light_color = Color(0.9, 0.6, 0.3)
+        hatch.light_energy = 1.6
+        add_child(hatch)
+        var door_pool := OmniLight3D.new()
+        door_pool.position = Vector3(26.3, 1.4, 8)
+        door_pool.omni_range = 2.6
+        door_pool.light_color = Color(0.85, 0.62, 0.34)
+        door_pool.light_energy = 1.9
+        add_child(door_pool)
+        # the cold city at the panes
+        for wx in [18.5, 22.5]:
                 var pane := OmniLight3D.new()
-                pane.position = Vector3(wx, 1.8, 2.6)
+                pane.position = Vector3(wx, 1.9, 2.3)
                 pane.omni_range = 6.0
-                pane.light_color = Color(0.55, 0.72, 0.95)
-                pane.light_energy = 0.6
+                pane.light_color = Color(0.45, 0.56, 0.82)
+                pane.light_energy = 0.9
                 add_child(pane)
-        # the three work pools: the reading table, the file wall, the radio -
-        # hung high like little bench bulbs, never close enough to blow out
-        # the tags or the props under vertex lighting
-        var table_pool := OmniLight3D.new()
-        table_pool.position = Vector3(16.85, 2.35, 10.5)
-        table_pool.omni_range = 3.6
-        table_pool.light_color = Color(1.0, 0.82, 0.55)
-        table_pool.light_energy = 0.6
-        add_child(table_pool)
-        var file_pool := OmniLight3D.new()
-        file_pool.position = Vector3(6.4, 2.35, 6.5)
-        file_pool.omni_range = 3.6
-        file_pool.light_color = Color(1.0, 0.82, 0.55)
-        file_pool.light_energy = 0.6
-        add_child(file_pool)
-        var radio_pool := OmniLight3D.new()
-        radio_pool.position = Vector3(33.5, 2.3, 3.9)
-        radio_pool.omni_range = 3.2
-        radio_pool.light_color = Color(0.95, 0.75, 0.5)
-        radio_pool.light_energy = 0.5
-        add_child(radio_pool)
+        # the floor lamp by the chair
+        var lamp := OmniLight3D.new()
+        lamp.position = Vector3(19.0, 1.9, 14.3)
+        lamp.omni_range = 5.0
+        lamp.light_color = Color(1.0, 0.78, 0.5)
+        lamp.light_energy = 0.8
+        add_child(lamp)
+        # small pools where the work is: the board and the file bank
+        var board := OmniLight3D.new()
+        board.position = Vector3(9.5, 2.2, 2.2)
+        board.omni_range = 3.0
+        board.light_color = Color(1.0, 0.8, 0.55)
+        board.light_energy = 0.5
+        add_child(board)
+        var bank := OmniLight3D.new()
+        bank.position = Vector3(1.8, 1.7, 4.5)
+        bank.omni_range = 4.0
+        bank.light_color = Color(0.55, 0.6, 0.55)
+        bank.light_energy = 0.5
+        add_child(bank)
         _view = PS1_VIEW.new()
         add_child(_view)
-        _view.tube().add_child(env)                # the tube owns the environment
+        _view.tube().add_child(env)        # the tube owns the environment
         _room = ROOM.new()
         add_child(_room)
 
@@ -193,7 +158,7 @@ func _spawn_pi() -> void:
         _player = Pi.new()
         add_child(_player)
         _player.position = SPAWN
-        _player.rotation.y = PI               # he faces the room, lens behind
+        _player.rotation.y = PI            # he faces the desk, lens behind
         _player.cam = _view.camera
 
 
@@ -211,6 +176,10 @@ func _process(delta: float) -> void:
                         _rain[i] = p
                 _rain_canvas.queue_redraw()
         _room.pulse_markers(Time.get_ticks_msec() / 1000.0)
+        # the subtitle strip fades after its line has had its moment
+        if _sub_t < 6.0:
+                _sub_t += delta
+                _sub_bar.modulate.a = clampf(2.0 - _sub_t, 0.0, 1.0)
         _update_prompt()
         _follow_cam()
 
@@ -278,25 +247,72 @@ func _build_hud() -> void:
         for i in 60:
                 _rain.append(Vector2(randf() * 640.0, randf() * 360.0))
 
-        # Permanent text lives ON the wall rows - the playfield stays clear.
-        _lbl(root, Vector2(8, 6), 200, 9, "THE OFFICE", SODIUM, HORIZONTAL_ALIGNMENT_LEFT)
-        _lbl(root, Vector2(400, 6), 232, 8, "23:41  -  RAIN ON THE GLASS", FOG, HORIZONTAL_ALIGNMENT_RIGHT)
-        _case_line = _lbl(root, Vector2(8, 326), 300, 8, "", SODIUM, HORIZONTAL_ALIGNMENT_LEFT)
-        _foot = _lbl(root, Vector2(300, 326), 332, 8, "", FOG, HORIZONTAL_ALIGNMENT_RIGHT)
+        # the terminal bars: black strips, white mono type, like the subs
+        _bar(root, Vector2(0, 0), Vector2(640, 20))
+        _mlbl(root, Vector2(8, 4), 300, 9, "RED HARBOR - ROOM 407", WHITE)
+        _mlbl(root, Vector2(340, 4), 292, 9, "23:47 - RAIN ON THE GLASS", GREY,
+                        HORIZONTAL_ALIGNMENT_RIGHT)
+        _bar(root, Vector2(0, 330), Vector2(640, 30))
+        _case_line = _mlbl(root, Vector2(8, 336), 420, 9, "", WHITE)
+        _mlbl(root, Vector2(430, 336), 202, 9, "WASD WALK - E USE - ESC PAUSE", GREY,
+                        HORIZONTAL_ALIGNMENT_RIGHT)
         _refresh_case_line()
-        _refresh_foot()
-        _hint(root)
-        _prompt = _lbl(root, Vector2(0, 288), 640, 11, "", SODIUM, HORIZONTAL_ALIGNMENT_CENTER)
+        # the subtitle strip: ambient lines land here and fade
+        _sub_bar = _bar(root, Vector2(60, 288), Vector2(520, 26))
+        _sub_bar.modulate.a = 0.0
+        _sub = _mlbl(_sub_bar, Vector2(8, 6), 504, 9, "", WHITE,
+                        HORIZONTAL_ALIGNMENT_CENTER)
+        _prompt = _mlbl(root, Vector2(0, 258), 640, 11, "", AMBER,
+                        HORIZONTAL_ALIGNMENT_CENTER)
         _build_panel(root)
         _add_grain()
 
 
-func _hint(root: Control) -> void:
-        # The controls line shows once, then fades - never a permanent overlay.
-        var h := _lbl(root, Vector2(160, 6), 320, 9, "WASD walk  -  E use  -  ESC pause", BONE, HORIZONTAL_ALIGNMENT_CENTER)
-        var tw := h.create_tween()
-        tw.tween_interval(7.0)
-        tw.tween_property(h, "modulate:a", 0.0, 1.2)
+func _bar(parent: Control, pos: Vector2, size: Vector2) -> ColorRect:
+        var b := ColorRect.new()
+        b.position = pos
+        b.size = size
+        b.color = Color(0.02, 0.02, 0.02, 0.92)
+        b.mouse_filter = Control.MOUSE_FILTER_IGNORE
+        parent.add_child(b)
+        return b
+
+
+func _mlbl(parent: Control, pos: Vector2, width: float, size: int,
+                msg: String, color: Color, align: int = HORIZONTAL_ALIGNMENT_LEFT) -> Label:
+        var l := Label.new()
+        l.position = pos
+        l.size = Vector2(width, size + 8)
+        l.text = msg
+        l.horizontal_alignment = align as HorizontalAlignment
+        l.add_theme_font_override("font", MONO)
+        l.add_theme_font_size_override("font_size", size)
+        l.add_theme_color_override("font_color", color)
+        l.mouse_filter = Control.MOUSE_FILTER_IGNORE
+        parent.add_child(l)
+        return l
+
+
+func _refresh_case_line() -> void:
+        var c: Dictionary = Run.case
+        if c.is_empty():
+                _case_line.text = "NO FILE ON THE DESK"
+        else:
+                _case_line.text = "CASE %s - %s - %s" % [c["no"], c["title"], c["district"]]
+
+
+func _on_ring() -> void:
+        _flash_sub("THE PHONE IS RINGING.")
+
+
+func _on_line(text: String) -> void:
+        _flash_sub(text)
+
+
+func _flash_sub(text: String) -> void:
+        _sub.text = text
+        _sub_t = 0.0
+        _sub_bar.modulate.a = 1.0
 
 
 func _add_grain() -> void:
@@ -314,44 +330,19 @@ func _add_grain() -> void:
         layer.add_child(grain)
 
 
-func _lbl(parent: Control, pos: Vector2, width: float, size: int, msg: String, color: Color, align: int) -> Label:
-        var l := Label.new()
-        l.position = pos
-        l.size = Vector2(width, size + 8)
-        l.text = msg
-        l.horizontal_alignment = align as HorizontalAlignment
-        l.add_theme_font_size_override("font_size", size)
-        l.add_theme_color_override("font_color", color)
-        l.add_theme_color_override("font_outline_color", INK)
-        l.add_theme_constant_override("outline_size", 2)
-        l.mouse_filter = Control.MOUSE_FILTER_IGNORE
-        parent.add_child(l)
-        return l
-
-
-func _refresh_case_line() -> void:
-        var c: Dictionary = Run.case
-        _case_line.text = "%s  -  %s  -  %s" % [c["case_no"], c["title"], c["district"]]
-
-
-func _refresh_foot() -> void:
-        var txt := "FAVORS %d" % Run.favors
-        for id in Run.boons:
-                txt += "  -  %s" % Run.boon_by_id(id)["name"]
-        _foot.text = txt
-
-
 func _update_prompt() -> void:
         if _panel_kind != "":
+                _prompt.text = ""
                 return
         var near := _near_spot()
         if near == "":
                 _prompt.text = ""
-        elif near == "radio" and Run.boon_picks_left <= 0:
-                _prompt.text = "[E] the radio is quiet until the next file"
+        elif near == "phone" and not Ambient.is_ringing():
+                _prompt.text = "[E] THE DEAD LINE"
         else:
                 _prompt.text = "[E] %s" % SPOTS[near]["label"]
-        _prompt.add_theme_color_override("font_color", RED if near == "door" else SODIUM)
+        _prompt.add_theme_color_override("font_color",
+                        RED if near == "door" else AMBER)
 
 
 func _near_spot() -> String:
@@ -365,10 +356,10 @@ func _near_spot() -> String:
 
 func _draw_rain() -> void:
         for p in _rain:
-                _rain_canvas.draw_line(p, p + Vector2(-3, 14), Color(0.5, 0.56, 0.72, 0.22), 1.0)
+                _rain_canvas.draw_line(p, p + Vector2(-3, 14), Color(0.45, 0.5, 0.55, 0.22), 1.0)
 
 
-# --- panels --------------------------------------------------------------------------
+# --- panels -------------------------------------------------------------------------
 
 func _build_panel(root: Control) -> void:
         _panel = Control.new()
@@ -378,52 +369,29 @@ func _build_panel(root: Control) -> void:
         root.add_child(_panel)
         var dim := ColorRect.new()
         dim.set_anchors_preset(Control.PRESET_FULL_RECT)
-        dim.color = Color(0.06, 0.05, 0.09, 0.8)
+        dim.color = Color(0.0, 0.0, 0.0, 0.72)
         dim.mouse_filter = Control.MOUSE_FILTER_IGNORE
         _panel.add_child(dim)
-        var back := ColorRect.new()
-        back.position = Vector2(140, 42)
-        back.size = Vector2(360, 276)
-        back.color = PANEL
-        back.mouse_filter = Control.MOUSE_FILTER_IGNORE
-        _panel.add_child(back)
+        var back := _bar(_panel, Vector2(140, 60), Vector2(360, 240))
+        back.color = PANEL_INK
         var edge := ColorRect.new()
         edge.position = back.position - Vector2(2, 2)
         edge.size = back.size + Vector2(4, 4)
-        edge.color = SLATE
+        edge.color = PANEL_EDGE
         edge.show_behind_parent = true
         edge.mouse_filter = Control.MOUSE_FILTER_IGNORE
         _panel.add_child(edge)
-        _panel_title = _lbl(_panel, Vector2(152, 50), 336, 12, "", SODIUM, HORIZONTAL_ALIGNMENT_CENTER)
-        _panel_body = _lbl(_panel, Vector2(158, 72), 324, 10, "", BONE, HORIZONTAL_ALIGNMENT_LEFT)
+        _panel_title = _mlbl(_panel, Vector2(152, 68), 336, 12, "", WHITE,
+                        HORIZONTAL_ALIGNMENT_CENTER)
+        _panel_body = _mlbl(_panel, Vector2(158, 92), 324, 10, "", WHITE)
         _panel_body.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-        _panel_body.size = Vector2(324, 196)
-        _panel_hint = _lbl(_panel, Vector2(152, 300), 336, 8, "", FOG, HORIZONTAL_ALIGNMENT_CENTER)
-        for i in 3:                    # boon cards, only shown on the radio panel
-                var cx := 150.0 + i * 120.0
-                var ce := ColorRect.new()
-                ce.position = Vector2(cx, 78)
-                ce.size = Vector2(112, 188)
-                ce.color = SLATE
-                ce.mouse_filter = Control.MOUSE_FILTER_IGNORE
-                _panel.add_child(ce)
-                _card_edges.append(ce)
-                var card := ColorRect.new()
-                card.position = Vector2(cx + 2, 80)
-                card.size = Vector2(108, 184)
-                card.color = PANEL
-                card.mouse_filter = Control.MOUSE_FILTER_IGNORE
-                _panel.add_child(card)
-                _card_backs.append(card)
-                var body := _lbl(_panel, Vector2(cx + 8, 88), 96, 9, "", BONE, HORIZONTAL_ALIGNMENT_LEFT)
-                body.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-                body.size = Vector2(96, 162)
-                _card_bodies.append(body)
+        _panel_body.size = Vector2(324, 176)
+        _panel_hint = _mlbl(_panel, Vector2(152, 272), 336, 8, "", GREY,
+                        HORIZONTAL_ALIGNMENT_CENTER)
 
 
 func open_panel(kind: String) -> void:
         _panel_kind = kind
-        _selected = 0
         _panel.visible = true
         _player.set_physics_process(false)
         velocity_zero()
@@ -438,112 +406,49 @@ func close_panel() -> void:
         _panel_kind = ""
         _panel.visible = false
         _player.set_physics_process(true)
-        _refresh_foot()
 
 
 func _refresh_panel() -> void:
-        var cards := _panel_kind == "boons"
-        for i in 3:
-                _card_edges[i].visible = cards
-                _card_backs[i].visible = cards
-                _card_bodies[i].visible = cards
-        _panel_body.visible = not cards
         match _panel_kind:
                 "case":
-                        _panel_title.text = "THE CASE FILE"
+                        _panel_title.text = "CASE %s" % Run.case["no"]
                         _panel_body.text = _case_text()
-                        _panel_hint.text = "[E] put the file down"
-                "shop":
-                        _panel_title.text = "THE FILE WALL  -  FAVORS %d" % Run.favors
-                        _panel_body.text = _shop_text()
-                        _panel_hint.text = "[Z/X/C] buy   -   [E] close"
-                "boons":
-                        boon_offers = Run.offer_boons(3)
-                        _panel_title.text = "THE RADIO  -  CHOOSE A BOON  (%d LEFT)" % Run.boon_picks_left
-                        _panel_hint.text = "A / D choose  -  ENTER take it  -  ESC step away"
-                        for i in boon_offers.size():
-                                var b: Dictionary = boon_offers[i]
-                                _card_bodies[i].text = "%s\n\n%s\n\n%s\n\nLASTS THIS CASE" % [b["name"], b["tag"], b["text"]]
-                        _select(0)
-
-
-func _select(i: int) -> void:
-        _selected = wrapi(i, 0, maxi(boon_offers.size(), 1))
-        for k in _card_edges.size():
-                _card_edges[k].color = SODIUM if k == _selected else SLATE
+                        _panel_hint.text = "[E] PUT THE FILE DOWN"
+                "phone":
+                        _panel_title.text = "THE PHONE"
+                        _panel_body.text = _phone_text()
+                        _panel_hint.text = "[E] HANG UP"
+                "board":
+                        _panel_title.text = "THE BOARD"
+                        _panel_body.text = _board_text()
+                        _panel_hint.text = "[E] STEP AWAY"
 
 
 func _case_text() -> String:
         var c: Dictionary = Run.case
-        var rule: Dictionary = Run.RULES[c["rule"]]
-        var tally := {}
-        for t in c["tasks"]:
-                tally[t] = int(tally.get(t, 0)) + 1
-        var jobs := ""
-        for t in tally:
-                jobs += "- %s%s\n" % [Run.TASKS[t]["label"], " x%d" % int(tally[t]) if int(tally[t]) > 1 else ""]
-        var carry := ""
-        for id in Run.boons:
-                carry += (" - " if carry != "" else "") + Run.boon_by_id(id)["name"]
-        var carry_line := "YOU CARRY: %s\n\n" % carry if carry != "" else ""
-        return "%s%s  -  %s\n%s  -  %s\n\n%s\n\n%s\n\nCONDITION: %s\n%s\n\nDANGER %s  -  %s" % [
-                carry_line,
-                c["case_no"], c["district"], c["title"], c["building"], c["blurb"],
-                jobs.strip_edges(), rule["name"], rule["text"],
-                c["danger"], _reward_text(c)]
+        return "%s - %s\n%s\n\n%s\n\nDANGER %s\nFEE %s" % [
+                c["title"], c["district"], c["building"], c["blurb"], c["danger"], c["fee"]]
 
 
-static func _reward_text(c: Dictionary) -> String:
-        var r: Dictionary = c["reward"]
-        if r["kind"] == "favors":
-                return "[+%d FAVORS]" % int(r["amount"])
-        return "[2 BOONS]"
+func _phone_text() -> String:
+        var call: Dictionary = Ambient.answer_phone()
+        if not call.is_empty():
+                return "%s\n\n%s" % [call["line"], call["detail"]]
+        return "NO RING TONIGHT. THE LINE HUMS AND THE DIAL TICKS,\nAND THE HARBOR STAYS ON THE OTHER SIDE OF THE RAIN."
 
 
-func _shop_text() -> String:
-        var lines := ""
-        for i in Run.SHOP.size():
-                var s: Dictionary = Run.SHOP[i]
-                var lvl: int = int(Run.meta[s["id"]])
-                var cost := Run.shop_cost(s["id"])
-                var key: String = ["Z", "X", "C"][i]
-                if cost < 0:
-                        lines += "[%s] %s  %s  MAX\n" % [key, s["name"], ["I", "II", "III"][lvl]]
-                else:
-                        lines += "[%s] %s  %s  %d FAVORS\n" % [key, s["name"], ["I", "II", "III"][lvl], cost]
-                lines += s["text"] + "\n\n"
-        return lines.strip_edges()
-
-
-func take_boon(i: int) -> bool:
-        if _panel_kind != "boons" or boon_offers.is_empty() or Run.boon_picks_left <= 0:
-                return false
-        var b: Dictionary = boon_offers[clampi(i, 0, boon_offers.size() - 1)]
-        Run.add_boon(b["id"])
-        if Run.boon_picks_left > 0:
-                _refresh_panel()
-        else:
-                close_panel()
-        _refresh_foot()
-        return true
-
-
-func buy(id: String) -> bool:
-        var ok := Run.buy(id)
-        _refresh_panel()
-        _refresh_foot()
-        return ok
+func _board_text() -> String:
+        return "PINNED NOTES, MOST OF THEM OLD:\n\n- THE ANNEX STAIRWELL GOES UP. ASK WHY.\n- HARBOR FOG RUNS THICKER THAN THE TIDE TABLES SAY.\n- THE NINTH DELEGATE PAID IN A CURRENCY NOBODY MINTS.\n- CURFEW IS 23:00. THE WALTZ IS NOT.\n\nONE FRESH CARD, RED STRING: DEAL THE NEXT ONE."
 
 
 func deal_next_case() -> bool:
-        # The neon door: close this file, deal the next one from the bag.
+        # The steel door: close this file, deal the next one from the bag.
         Run.deal_case()
         _refresh_case_line()
-        _refresh_foot()
         return true
 
 
-# --- input ---------------------------------------------------------------------------
+# --- input --------------------------------------------------------------------------
 
 func _physics_process(_delta: float) -> void:
         if _panel_kind == "" and _player != null and Input.is_action_just_pressed("interact"):
@@ -551,11 +456,10 @@ func _physics_process(_delta: float) -> void:
                 match near:
                         "case":
                                 open_panel("case")
-                        "shop", "drawer":
-                                open_panel("shop")
-                        "radio":
-                                if Run.boon_picks_left > 0:
-                                        open_panel("boons")
+                        "phone":
+                                open_panel("phone")
+                        "board":
+                                open_panel("board")
                         "door":
                                 deal_next_case()
 
@@ -582,35 +486,4 @@ func _unhandled_input(event: InputEvent) -> void:
                 return
         if event.is_action_pressed("interact"):
                 get_viewport().set_input_as_handled()
-                if _panel_kind == "boons" and _boon_takeable():
-                        take_boon(_selected)
-                else:
-                        close_panel()
-                return
-        if _panel_kind == "boons":
-                if event.is_action_pressed("move_left") or event.is_action_pressed("ui_left"):
-                        get_viewport().set_input_as_handled()
-                        _select(_selected - 1)
-                elif event.is_action_pressed("move_right") or event.is_action_pressed("ui_right"):
-                        get_viewport().set_input_as_handled()
-                        _select(_selected + 1)
-                elif event.is_action_pressed("ui_accept"):
-                        get_viewport().set_input_as_handled()
-                        take_boon(_selected)
-                elif event is InputEventKey and event.pressed and not event.echo:
-                        var k := (event as InputEventKey).physical_keycode
-                        if k == KEY_1 or k == KEY_2 or k == KEY_3:
-                                get_viewport().set_input_as_handled()
-                                _select(k - KEY_1)
-                                take_boon(_selected)
-        elif _panel_kind == "shop":
-                if event is InputEventKey and event.pressed and not event.echo:
-                        var k := (event as InputEventKey).physical_keycode
-                        var map := {KEY_Z: "stride", KEY_X: "soles", KEY_C: "pockets"}
-                        if map.has(k):
-                                get_viewport().set_input_as_handled()
-                                buy(map[k])
-
-
-func _boon_takeable() -> bool:
-        return Run.boon_picks_left > 0 and not boon_offers.is_empty()
+                close_panel()

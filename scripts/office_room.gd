@@ -1,425 +1,396 @@
 class_name OfficeRoom
 extends Node3D
-## The office as a PS1 diorama: the same MAP legend the 2D room used, extruded
-## into low-poly boxes. One tile = one unit. The room is a sealed box - four
-## walls and a lid - so no camera angle inside it ever opens on the void. The
-## walls collide as plain boxes but render as subdivided faces, so the vertex
-## lighting can pool on them; every surface wears the one PS1 material.
+## The office as a Klubnika diorama: one cramped concrete slab, green
+## wainscot, a steel door with a lit hatch, a turbine bolted to the east
+## wall, and every surface wearing its grime. The room is a sealed box - four
+## walls and a lid - so no camera angle inside it ever opens on the void.
 
 const MAT := preload("res://shaders/ps1_mat.gdshader")
-const TILE := 1.0
-const WALL_H := 2.8
-const INK := Color("14121c")
-const OXBLOOD := Color(0.30, 0.13, 0.16)
-const COAT := Color(0.27, 0.26, 0.32)
-const HAT := Color(0.22, 0.21, 0.27)
-const GLASS_G := Color(0.20, 0.36, 0.23)
-const GLASS_B := Color(0.38, 0.24, 0.13)
-const GLASS_C := Color(0.55, 0.53, 0.48)
-const SLATE := Color(0.29, 0.30, 0.40)
-const IRON := Color(0.16, 0.15, 0.17)
-const BULB := Color("ffd9a0")
-const SODIUM := Color("e8b366")
-# compass of the diorama: the door faces -X, the city is north
-const SOUTH := Vector3(0, 0, 1)
-const WEST := Vector3(-1, 0, 0)
+const WALL_H := 3.0
+const W := 28.0
+const D := 16.0
+const INK := Color("0a0c10")
+const MAROON := Color(0.32, 0.14, 0.12)
+const GLASS_G := Color(0.24, 0.34, 0.22)
+const GLASS_B := Color(0.30, 0.20, 0.12)
+const AMBER := Color(0.88, 0.62, 0.30)
+const PHOS := Color(0.62, 0.78, 0.58)
+const IRON_D := Color(0.14, 0.14, 0.16)
+const WOOD_D := Color(0.20, 0.15, 0.11)
+
 const EAST := Vector3(1, 0, 0)
+const WEST := Vector3(-1, 0, 0)
+const SOUTH := Vector3(0, 0, 1)
 
-# legend: # wall · w window · , worn floor · . planks · r rug · d desk ·
-# k cabinet · c crate · i radio · ~ neon door · m mat · s scuff
-const MAP: Array[String] = [
-		"#######ww##########ww##########ww#######",
-		"#,,..................................,,#",
-		"#......................................#",
-		"#..kk............................ic....#",
-		"#..kk..................................#",
-		"#..kk..................................#",
-		"#..kk..........dddd....................#",
-		"#..kk..........dddd....................#",
-		"#..kk..........dddd.......s............#",
-		"#......................................#",
-		"#.....................................~#",
-		"#.....................................~#",
-		"#.....................................m#",
-		"#...................rrrrrr.............#",
-		"#...................rrrrrr.............#",
-		"#...................rrrrrr.............#",
-		"#.........s.........rrrrrr.............#",
-		"#..ccc.................................#",
-		"#................................s.....#",
-		"#,,..................................,,#",
-		"#,,..................................,,#",
-		"########################################",
-]
-
-const PROPS := {
-		"d": {"tex": "desk", "h": 0.95},
-		"k": {"tex": "shelf", "h": 2.3},
-		"c": {"tex": "crate", "h": 1.0},
-		"i": {"tex": "radio", "h": 0.9},
+# the spots you can use, each ON its prop's body
+const SPOT_POINTS := {
+        "case": Vector3(14.45, 0, 9.05),     # the folder on the desk
+        "phone": Vector3(14.85, 0, 8.7),     # the bakelite on the desk
+        "board": Vector3(9.5, 0, 1.5),       # the corkboard on the north wall
+        "door": Vector3(26.4, 0, 8.0),       # the steel door, east wall
 }
-const FLAT_PROPS := {"m": "mat", "s": "scuff"}
-
-const SPOT_CELLS := {"case": Vector2i(16, 10), "drawer": Vector2i(6, 6),
-				"radio": Vector2i(33, 4), "door": Vector2i(37, 11)}
-
-# every marker sits ON its prop: the folder on the reading table, the cabinet
-# face, the radio top, the door leaf - nothing floats over open floor
-const SPOT_MARKS := {
-		"case": Vector3(16.85, 1.12, 10.45),
-		"drawer": Vector3(5.22, 1.5, 6.5),
-		"radio": Vector3(33.5, 0.98, 3.5),
-		"door": Vector3(38.72, 1.75, 11.0),
+const MARKS := {
+        "case": [Vector3(14.45, 1.14, 9.28), Vector3(0, 0, 1)],
+        "phone": [Vector3(14.85, 1.24, 8.48), Vector3(0, 0, 1)],
+        "board": [Vector3(9.5, 1.42, 1.1), Vector3(0, 0, 1)],
+        "door": [Vector3(26.85, 1.2, 8.0), Vector3(-1, 0, 0)],
 }
 
-var spots := {}                 # name -> Vector3 (the SPOT_CELLS, world space)
+var spots := {}                 # name -> Vector3 (world space)
 var _markers: Array[MeshInstance3D] = []
 var _fan: Node3D                # the turbine on the east wall, spinning
 
 
 func _ready() -> void:
-		_build_floor()
-		_build_walls()
-		_build_windows_and_door()
-		_build_props()
-		_build_dressing()
-		_build_spots()
-		_build_markers()
+        for key in SPOT_POINTS:
+                spots[key] = SPOT_POINTS[key]
+        _build_shell()
+        _build_windows()
+        _build_door()
+        _build_desk()
+        _build_west_wall()
+        _build_east_wall()
+        _build_lounge()
+        _build_industrial()
+        _build_markers()
 
 
 func spot(key: String) -> Vector3:
-		return spots[key]
+        return spots[key]
 
 
 func pulse_markers(t: float) -> void:
-		for m in _markers:
-				(m.material_override as ShaderMaterial).set_shader_parameter(
-								"glow", 0.45 + 0.2 * sin(t * 2.6))
-		if _fan != null:
-				_fan.rotation.x = t * 0.9        # the turbine turns, slow and heavy
+        for m in _markers:
+                (m.material_override as ShaderMaterial).set_shader_parameter(
+                                "glow", 0.4 + 0.18 * sin(t * 2.6))
+        if _fan != null:
+                _fan.rotation.x = t * 0.9        # the turbine turns, slow and heavy
 
 
 # --- the material factory -------------------------------------------------------------
 
 func _mat(tex_name := "", tint := Color.WHITE, uv := Vector2.ONE, glow := 0.0) -> ShaderMaterial:
-		var m := ShaderMaterial.new()
-		m.shader = MAT
-		m.set_shader_parameter("tint", tint)
-		if tex_name != "":
-				m.set_shader_parameter("textured", true)
-				m.set_shader_parameter("tex", load("res://assets/tex/%s.png" % tex_name))
-		m.set_shader_parameter("uv_scale", uv)
-		m.set_shader_parameter("glow", glow)
-		return m
+        var m := ShaderMaterial.new()
+        m.shader = MAT
+        m.set_shader_parameter("tint", tint)
+        if tex_name != "":
+                m.set_shader_parameter("textured", true)
+                m.set_shader_parameter("tex", load("res://assets/tex/%s.png" % tex_name))
+        m.set_shader_parameter("uv_scale", uv)
+        m.set_shader_parameter("glow", glow)
+        return m
 
 
 func _collider(size: Vector3, pos: Vector3) -> void:
-		var body := StaticBody3D.new()
-		var cs := CollisionShape3D.new()
-		var shape := BoxShape3D.new()
-		shape.size = size
-		cs.shape = shape
-		body.add_child(cs)
-		body.position = pos
-		add_child(body)
+        var body := StaticBody3D.new()
+        var cs := CollisionShape3D.new()
+        var shape := BoxShape3D.new()
+        shape.size = size
+        cs.shape = shape
+        body.add_child(cs)
+        body.position = pos
+        add_child(body)
 
 
-func _box(size: Vector3, pos: Vector3, mat: ShaderMaterial, solid := true) -> void:
-		var mi := MeshInstance3D.new()
-		var mesh := BoxMesh.new()
-		mesh.size = size
-		mi.mesh = mesh
-		mi.material_override = mat
-		mi.position = pos
-		add_child(mi)
-		if solid:
-				var body := StaticBody3D.new()
-				var cs := CollisionShape3D.new()
-				var shape := BoxShape3D.new()
-				shape.size = size
-				cs.shape = shape
-				body.add_child(cs)
-				body.position = pos
-				add_child(body)
+func _box(size: Vector3, pos: Vector3, mat: ShaderMaterial, solid := true) -> MeshInstance3D:
+        var mi := MeshInstance3D.new()
+        var mesh := BoxMesh.new()
+        mesh.size = size
+        mi.mesh = mesh
+        mi.material_override = mat
+        mi.position = pos
+        add_child(mi)
+        if solid:
+                var body := StaticBody3D.new()
+                var cs := CollisionShape3D.new()
+                var shape := BoxShape3D.new()
+                shape.size = size
+                cs.shape = shape
+                body.add_child(cs)
+                body.position = pos
+                add_child(body)
+        return mi
 
 
-func _quad(size: Vector2, pos: Vector3, mat: ShaderMaterial, face: Vector3,
-				div := Vector2i.ZERO, yaw := 0.0) -> MeshInstance3D:
-		var mi := MeshInstance3D.new()
-		var mesh := PlaneMesh.new()
-		mesh.size = size
-		if div.x > 0:
-				mesh.subdivide_width = div.x
-				mesh.subdivide_depth = div.y
-		mi.mesh = mesh
-		mi.material_override = mat
-		mi.position = pos
-		# spin the base plane to its compass face; the WEST/EAST turns go
-		# through "up" first so textures stay upright on the wall
-		if face == Vector3.UP:
-				if yaw != 0.0:
-						mi.rotation.y = yaw
-		elif face == SOUTH:
-				# upright from both sides: the shader draws backfaces too
-				mi.rotation.x = PI * 0.5
-		elif face == Vector3.DOWN:
-				mi.rotation.x = PI
-		elif face == WEST:
-				mi.rotation = Vector3(PI * 0.5, -PI * 0.5, 0)
-		elif face == EAST:
-				mi.rotation = Vector3(PI * 0.5, PI * 0.5, 0)
-		add_child(mi)
-		return mi
+func _quad(size: Vector2, pos: Vector3, mat: ShaderMaterial, face := SOUTH,
+                yaw := 0.0) -> MeshInstance3D:
+        var mi := MeshInstance3D.new()
+        var mesh := PlaneMesh.new()
+        mesh.size = size
+        mesh.subdivide_width = 8
+        mesh.subdivide_depth = 4
+        mi.mesh = mesh
+        mi.material_override = mat
+        mi.position = pos
+        # spin the base plane to its compass face; the wall turns go through
+        # "up" first so textures stay upright on the wall
+        if face == Vector3.UP:
+                if yaw != 0.0:
+                        mi.rotation.y = yaw
+        elif face == Vector3.DOWN:
+                mi.rotation.x = PI
+        elif face == WEST:
+                mi.rotation = Vector3(PI * 0.5, -PI * 0.5, 0)
+        elif face == EAST:
+                mi.rotation = Vector3(PI * 0.5, PI * 0.5, 0)
+        else:                              # SOUTH: upright from both sides
+                mi.rotation.x = PI * 0.5
+        add_child(mi)
+        return mi
 
 
-func _cells(ch: String) -> Array[Vector2i]:
-		var out: Array[Vector2i] = []
-		for y in MAP.size():
-				for x in MAP[y].length():
-						if MAP[y][x] == ch:
-								out.append(Vector2i(x, y))
-		return out
+# --- the shell ------------------------------------------------------------------------
+
+func _build_shell() -> void:
+        # floor: worn boards
+        var mi := MeshInstance3D.new()
+        var mesh := PlaneMesh.new()
+        mesh.size = Vector2(W, D)
+        mesh.subdivide_width = 14
+        mesh.subdivide_depth = 8
+        mi.mesh = mesh
+        mi.position = Vector3(W * 0.5, 0, D * 0.5)
+        mi.material_override = _mat("floor", Color.WHITE, Vector2(7, 4))
+        add_child(mi)
+        _collider(Vector3(W, 0.4, D), Vector3(W * 0.5, -0.2, D * 0.5))
+        # the wainscot band and the plaster above it, on all four walls
+        var band_h := 0.95
+        _quad(Vector2(W, band_h), Vector3(W * 0.5, band_h * 0.5, 1.01),
+                        _mat("wainscot", Color.WHITE, Vector2(7, 0.5)))
+        _quad(Vector2(W, WALL_H - band_h), Vector3(W * 0.5, band_h + (WALL_H - band_h) * 0.5, 1.01),
+                        _mat("wall", Color.WHITE, Vector2(7, 1)))
+        _quad(Vector2(W, band_h), Vector3(W * 0.5, band_h * 0.5, D - 1.01),
+                        _mat("wainscot", Color.WHITE, Vector2(7, 0.5)))
+        _quad(Vector2(W, WALL_H - band_h), Vector3(W * 0.5, band_h + (WALL_H - band_h) * 0.5, D - 1.01),
+                        _mat("wall", Color.WHITE, Vector2(7, 1)))
+        _quad(Vector2(D, band_h), Vector3(1.01, band_h * 0.5, D * 0.5),
+                        _mat("wainscot", Color.WHITE, Vector2(4, 0.5)), EAST)
+        _quad(Vector2(D, WALL_H - band_h), Vector3(1.01, band_h + (WALL_H - band_h) * 0.5, D * 0.5),
+                        _mat("wall", Color.WHITE, Vector2(4, 1)), EAST)
+        _quad(Vector2(D, band_h), Vector3(W - 1.01, band_h * 0.5, D * 0.5),
+                        _mat("wainscot", Color.WHITE, Vector2(4, 0.5)), WEST)
+        _quad(Vector2(D, WALL_H - band_h), Vector3(W - 1.01, band_h + (WALL_H - band_h) * 0.5, D * 0.5),
+                        _mat("wall", Color.WHITE, Vector2(4, 1)), WEST)
+        # the lid
+        _quad(Vector2(W, D), Vector3(W * 0.5, WALL_H, D * 0.5),
+                        _mat("ceiling", Color.WHITE, Vector2(7, 4)), Vector3.DOWN)
+        # wall collisions: the shell carries them
+        _collider(Vector3(W, WALL_H, 1), Vector3(W * 0.5, WALL_H * 0.5, 0.5))
+        _collider(Vector3(W, WALL_H, 1), Vector3(W * 0.5, WALL_H * 0.5, D - 0.5))
+        _collider(Vector3(1, WALL_H, D), Vector3(0.5, WALL_H * 0.5, D * 0.5))
+        _collider(Vector3(1, WALL_H, D), Vector3(W - 0.5, WALL_H * 0.5, D * 0.5))
+        # a baseboard shadow strip where wall meets floor, all four walls
+        var skirt := _mat("", IRON_D)
+        _box(Vector3(W, 0.14, 0.06), Vector3(W * 0.5, 0.07, 1.04), skirt, false)
+        _box(Vector3(W, 0.14, 0.06), Vector3(W * 0.5, 0.07, D - 1.04), skirt, false)
+        _box(Vector3(0.06, 0.14, D), Vector3(1.04, 0.07, D * 0.5), skirt, false)
+        _box(Vector3(0.06, 0.14, D), Vector3(W - 1.04, 0.07, D * 0.5), skirt, false)
 
 
-func _runs(ch: String) -> Array[Rect2i]:
-		# merge each char's cells into horizontal runs, then stack equal runs
-		var cells := _cells(ch)
-		var out: Array[Rect2i] = []
-		var by_row := {}
-		for c in cells:
-				if not by_row.has(c.y):
-						by_row[c.y] = []
-				by_row[c.y].append(c.x)
-		for y in by_row:
-				var xs: Array = by_row[y]
-				xs.sort()
-				var i := 0
-				while i < xs.size():
-						var x0: int = xs[i]
-						while i + 1 < xs.size() and xs[i + 1] == xs[i] + 1:
-								i += 1
-						out.append(Rect2i(x0, y, xs[i] - x0 + 1, 1))
-						i += 1
-		return out
+func _build_windows() -> void:
+        # the rain-streaked city, two panes with iron frames
+        # the two panes, the rain-streaked city behind them
+        for wx in [18.5, 22.5]:
+                _quad(Vector2(2.2, 1.6), Vector3(wx, 1.95, 1.02), _mat("", INK))
+                _quad(Vector2(2.0, 1.4), Vector3(wx, 1.95, 1.04),
+                                _mat("window", Color.WHITE, Vector2.ONE, 1.3))
+                for part in [[Vector3(2.24, 0.08, 0.08), Vector3(wx, 1.19, 1.06)],
+                                [Vector3(2.24, 0.08, 0.08), Vector3(wx, 2.71, 1.06)],
+                                [Vector3(0.08, 1.6, 0.08), Vector3(wx - 1.08, 1.95, 1.06)],
+                                [Vector3(0.08, 1.6, 0.08), Vector3(wx + 1.08, 1.95, 1.06)],
+                                [Vector3(0.06, 1.6, 0.06), Vector3(wx, 1.95, 1.06)]]:
+                        _box(part[0], part[1], _mat("", IRON_D), false)
+        # the radiator under the right pane, five iron fins
+        for i in 5:
+                _box(Vector3(0.14, 0.52, 0.1), Vector3(21.9 + i * 0.16, 0.36, 1.2),
+                                _mat("", IRON_D))
+        _box(Vector3(0.95, 0.06, 0.14), Vector3(22.2, 0.66, 1.2), _mat("", IRON_D), false)
 
 
-# --- the build ------------------------------------------------------------------------
-
-func _build_floor() -> void:
-		var mesh := PlaneMesh.new()
-		mesh.size = Vector2(40, 22)
-		mesh.subdivide_width = 24
-		mesh.subdivide_depth = 14
-		var mi := MeshInstance3D.new()
-		mi.mesh = mesh
-		mi.position = Vector3(20, 0, 11)      # the room lives at 0..40 / 0..22
-		mi.material_override = _mat("floor", Color.WHITE, Vector2(10, 5.5))
-		add_child(mi)
-		_collider(Vector3(40, 0.4, 22), Vector3(20, -0.2, 11))
-		for r in _runs("r"):                       # the oxblood rug
-				_quad(Vector2(r.size.x * TILE, r.size.y * TILE),
-								Vector3(r.position.x * TILE + r.size.x * TILE * 0.5, 0.02,
-								r.position.y * TILE + r.size.y * TILE * 0.5),
-								_mat("rug", Color.WHITE, Vector2(r.size.x * 0.5, r.size.y * 0.5)), Vector3.UP)
-		for r in _runs(","):                       # worn patches darken the boards
-				_quad(Vector2(r.size.x * TILE, r.size.y * TILE),
-								Vector3(r.position.x * TILE + r.size.x * TILE * 0.5, 0.01,
-								r.position.y * TILE + r.size.y * TILE * 0.5),
-								_mat("scuff", Color(1, 1, 1, 1), Vector2.ONE), Vector3.UP)
+func _build_door() -> void:
+        # the steel door on the east wall, its hatch glowing amber over the slot
+        _quad(Vector2(1.3, 2.36), Vector3(W - 1.03, 1.18, 8.0),
+                        _mat("door", Color.WHITE, Vector2.ONE, 0.3), WEST)
+        for part in [[Vector3(0.1, 2.4, 0.1), Vector3(W - 1.05, 1.2, 7.3)],
+                        [Vector3(0.1, 2.4, 0.1), Vector3(W - 1.05, 1.2, 8.7)],
+                        [Vector3(0.08, 2.4, 1.5), Vector3(W - 1.05, 1.2, 8.0)]]:
+                _box(part[0], part[1], _mat("", IRON_D))
+        _quad(Vector2(0.34, 0.38), Vector3(W - 1.07, 1.62, 8.0),
+                        _mat("", AMBER, Vector2.ONE, 1.4), WEST)
+        _box(Vector3(0.06, 0.42, 0.38), Vector3(W - 1.06, 1.62, 8.0),
+                        _mat("", IRON_D), false)
+        _box(Vector3(0.05, 0.3, 0.06), Vector3(W - 1.1, 1.05, 7.55),
+                        _mat("", IRON_D), false)          # the handle
+        # the trash bin beside it
+        _box(Vector3(0.3, 0.55, 0.3), Vector3(W - 1.3, 0.275, 10.2), _mat("iron"))
+        _collider(Vector3(0.4, 0.6, 0.4), Vector3(W - 1.3, 0.3, 10.2))
 
 
-func _build_walls() -> void:
-		# the shells carry the collisions; the look comes from subdivided inner
-		# faces so the vertex lighting pools and falls off across the wall
-		_collider(Vector3(40, WALL_H, 1), Vector3(20, WALL_H * 0.5, 0.5))
-		_collider(Vector3(1, WALL_H, 22), Vector3(0.5, WALL_H * 0.5, 11))
-		_collider(Vector3(1, WALL_H, 22), Vector3(39.5, WALL_H * 0.5, 11))
-		# the room is a sealed box: four inner faces, one lid. The camera is
-		# clamped inside, so no angle ever opens on the void outside.
-		_collider(Vector3(40, WALL_H, 1), Vector3(20, WALL_H * 0.5, 21.5))
-		_quad(Vector2(40, WALL_H), Vector3(20, WALL_H * 0.5, 20.99),
-						_mat("wall", Color.WHITE, Vector2(10, 1)), SOUTH, Vector2i(16, 4))
-		_quad(Vector2(40, WALL_H), Vector3(20, WALL_H * 0.5, 1.01),
-						_mat("wall", Color.WHITE, Vector2(10, 1)), SOUTH, Vector2i(16, 4))
-		_quad(Vector2(22, WALL_H), Vector3(1.01, WALL_H * 0.5, 11),
-						_mat("wall", Color.WHITE, Vector2(5.5, 1)), EAST, Vector2i(8, 4))
-		_quad(Vector2(22, WALL_H), Vector3(38.99, WALL_H * 0.5, 11),
-						_mat("wall", Color.WHITE, Vector2(5.5, 1)), WEST, Vector2i(8, 4))
-		_quad(Vector2(40, 22), Vector3(20, WALL_H, 11),
-						_mat("ceiling", Color.WHITE, Vector2(10, 5.5)), Vector3.DOWN,
-						Vector2i(24, 14))
-		# the tray soffit over the north end, kept clear of the camera ray
-		var ceil := _mat("ceiling", Color.WHITE, Vector2(8, 1))
-		_box(Vector3(40, 0.12, 1.5), Vector3(20, WALL_H - 0.06, 0.75), ceil, false)
-		_box(Vector3(1.5, 0.12, 3.0), Vector3(0.75, WALL_H - 0.06, 1.5), ceil, false)
-		_box(Vector3(1.5, 0.12, 3.0), Vector3(39.25, WALL_H - 0.06, 1.5), ceil, false)
+func _build_desk() -> void:
+        # the heavy top in the middle of the room, the chair behind it
+        var wood := _mat("desk", Color.WHITE, Vector2.ONE)
+        # the top is a subdivided plane so the bulb's pool actually lands in it
+        var top := MeshInstance3D.new()
+        var tm := PlaneMesh.new()
+        tm.size = Vector2(1.7, 0.95)
+        tm.subdivide_width = 6
+        tm.subdivide_depth = 4
+        top.mesh = tm
+        top.material_override = wood
+        top.position = Vector3(14.0, 0.925, 9.2)
+        add_child(top)
+        _box(Vector3(1.7, 0.08, 0.95), Vector3(14.0, 0.88, 9.2), wood)
+        for leg in [Vector3(13.25, 0.42, 8.82), Vector3(14.75, 0.42, 8.82),
+                        Vector3(13.25, 0.42, 9.58), Vector3(14.75, 0.42, 9.58)]:
+                _box(Vector3(0.09, 0.84, 0.09), leg, _mat("", WOOD_D))
+        _collider(Vector3(1.8, 1.0, 1.05), Vector3(14.0, 0.5, 9.2))
+        # the chair, back to the north wall light
+        _box(Vector3(0.5, 0.08, 0.5), Vector3(14.0, 0.5, 8.35), _mat("desk"), false)
+        _box(Vector3(0.5, 0.55, 0.08), Vector3(14.0, 0.82, 8.14), _mat("desk"), false)
+        for leg in [Vector3(13.78, 0.23, 8.13), Vector3(14.22, 0.23, 8.13),
+                        Vector3(13.78, 0.23, 8.57), Vector3(14.22, 0.23, 8.57)]:
+                _box(Vector3(0.06, 0.46, 0.06), leg, _mat("", WOOD_D), false)
+        _collider(Vector3(0.6, 1.1, 0.6), Vector3(14.0, 0.55, 8.35))
+        # the dealt folder, the case spot's real body
+        _box(Vector3(0.42, 0.05, 0.32), Vector3(14.45, 0.945, 9.05),
+                        _mat("folder", Color.WHITE, Vector2.ONE, 0.06), false)
+        _box(Vector3(0.30, 0.02, 0.40), Vector3(13.62, 0.935, 9.0),
+                        _mat("paper", Color(0.72, 0.70, 0.66), Vector2.ONE), false)
+        # the typewriter and the bakelite
+        _box(Vector3(0.5, 0.22, 0.42), Vector3(13.15, 1.0, 8.72), _mat("typewriter"), false)
+        _box(Vector3(0.3, 0.12, 0.26), Vector3(14.85, 0.94, 8.7), _mat("phone"), false)
+        # the desk lamp: iron base, stem, a warm head over the folder
+        _box(Vector3(0.16, 0.05, 0.16), Vector3(14.7, 0.915, 9.5), _mat("", IRON_D), false)
+        _box(Vector3(0.05, 0.36, 0.05), Vector3(14.7, 1.11, 9.5), _mat("", IRON_D), false)
+        _box(Vector3(0.22, 0.10, 0.22), Vector3(14.7, 1.33, 9.45), _mat("", IRON_D), false)
+        _quad(Vector2(0.18, 0.18), Vector3(14.7, 1.27, 9.45),
+                        _mat("", AMBER * 0.9, Vector2.ONE, 1.2), Vector3.DOWN)
+        _collider(Vector3(0.3, 1.4, 0.3), Vector3(14.7, 0.7, 9.5))
+        # the ashtray with last night's proof
+        _box(Vector3(0.12, 0.04, 0.12), Vector3(13.9, 0.92, 9.45), _mat("", IRON_D), false)
+        # the case boxes on the floor, dealt and dealt again
+        _box(Vector3(0.55, 0.38, 0.42), Vector3(12.5, 0.19, 10.7),
+                        _mat("paper", Color(0.55, 0.53, 0.5), Vector2.ONE))
+        _box(Vector3(0.5, 0.34, 0.38), Vector3(12.55, 0.55, 10.72),
+                        _mat("paper", Color(0.5, 0.48, 0.46), Vector2.ONE), false)
+        _collider(Vector3(0.6, 0.8, 0.5), Vector3(12.5, 0.4, 10.7))
 
 
-func _build_windows_and_door() -> void:
-		for i in 3:                                # the rain-streaked city
-				var wx: float = [8.0, 20.0, 32.0][i]
-				var tex := "window2" if i == 1 else "window"
-				_quad(Vector2(2.3, 1.8), Vector3(wx, 1.7, 1.02), _mat("", INK), SOUTH)
-				_quad(Vector2(2.0, 1.5), Vector3(wx, 1.7, 1.03),
-								_mat(tex, Color.WHITE, Vector2.ONE, 0.78 + 0.08 * i), SOUTH)
-		_quad(Vector2(2.2, 2.4), Vector3(38.97, 1.2, 11.0),        # the neon door
-						_mat("door", Color.WHITE, Vector2.ONE, 0.8), WEST)
+func _build_west_wall() -> void:
+        # the file bank: three painted cabinets, paper loads on top, two bottles
+        for i in 3:
+                _box(Vector3(0.55, 1.9, 0.62), Vector3(1.32, 0.95, 3.5 + i * 1.05),
+                                _mat("cabinet", Color.WHITE, Vector2.ONE))
+                _box(Vector3(0.4, 0.14, 0.5),
+                                Vector3(1.3, 1.97, 3.4 + i * 1.05),
+                                _mat("paper", Color(0.62, 0.60, 0.57), Vector2.ONE), false)
+        _collider(Vector3(0.7, 2.0, 3.3), Vector3(1.35, 1.0, 4.55))
+        for i in 2:
+                var bcol: Color = [GLASS_G, GLASS_B][i]
+                _box(Vector3(0.1, 0.3, 0.1), Vector3(1.3, 2.11, 5.3 + i * 0.35),
+                                _mat("", bcol), false)
+        # the corkboard over the north end, the board spot's real body
+        _quad(Vector2(3.2, 1.3), Vector3(9.5, 2.0, 1.07), _mat("corkboard"))
+        for px in [-1.2, 0.0, 1.2]:       # the pinned thickness, an iron edge
+                _box(Vector3(0.9, 0.06, 0.05), Vector3(9.5 + px, 2.0, 1.1),
+                                _mat("", IRON_D), false)
+        # the crates in the southwest corner, boards like the floor
+        for part in [[Vector3(0.75, 0.75, 0.75), Vector3(1.4, 0.375, 14.55)],
+                        [Vector3(0.6, 0.6, 0.6), Vector3(1.45, 1.05, 14.5)]]:
+                _box(part[0], part[1], _mat("floor", Color(0.8, 0.75, 0.7), Vector2.ONE))
+        _collider(Vector3(0.9, 1.4, 0.9), Vector3(1.4, 0.7, 14.55))
+        # the dead plant in the northeast corner
+        _box(Vector3(0.32, 0.32, 0.32), Vector3(W - 1.4, 0.16, D - 1.2),
+                        _mat("iron"), false)
+        for part in [[Vector3(0.4, 0.34, 0.4), Vector3(W - 1.4, 0.5, D - 1.2), Color(0.14, 0.20, 0.11)],
+                        [Vector3(0.26, 0.3, 0.26), Vector3(W - 1.4, 0.8, D - 1.2), Color(0.18, 0.24, 0.12)],
+                        [Vector3(0.12, 0.24, 0.12), Vector3(W - 1.4, 1.05, D - 1.2), Color(0.2, 0.26, 0.13)]]:
+                _box(part[0], part[1], _mat("", part[2]), false)
+        _collider(Vector3(0.45, 0.6, 0.45), Vector3(W - 1.4, 0.3, D - 1.2))
 
 
-func _build_props() -> void:
-		for ch in PROPS:
-				var p: Dictionary = PROPS[ch]
-				var uv := Vector2.ONE if ch == "i" else Vector2(2, 1)
-				var gl := 0.5 if ch == "i" else 0.0    # the radio dial hums
-				for r in _runs(ch):
-						var w := r.size.x * TILE
-						var d := r.size.y * TILE
-						_box(Vector3(w, p["h"], d), Vector3(
-										r.position.x * TILE + w * 0.5, p["h"] * 0.5,
-										r.position.y * TILE + d * 0.5),
-										_mat(p["tex"], Color.WHITE, uv, gl))
-		for ch in FLAT_PROPS:
-				for c in _cells(ch):
-						var t: String = FLAT_PROPS[ch]
-						_quad(Vector2(0.55, 0.75), Vector3(c.x + 0.5, 0.03, c.y + 0.5),
-										_mat(t, Color.WHITE, Vector2.ONE), Vector3.UP)
+func _build_east_wall() -> void:
+        # the coat rack by the door, still wearing yesterday's coat
+        for part in [[Vector3(0.32, 0.06, 0.32), Vector3(W - 1.35, 0.03, 5.8)],
+                        [Vector3(0.07, 1.66, 0.07), Vector3(W - 1.35, 0.86, 5.8)],
+                        [Vector3(0.4, 0.05, 0.05), Vector3(W - 1.35, 1.68, 5.8)],
+                        [Vector3(0.05, 0.05, 0.4), Vector3(W - 1.35, 1.68, 5.8)]]:
+                _box(part[0], part[1], _mat("iron"))
+        _box(Vector3(0.34, 0.55, 0.24), Vector3(W - 1.35, 1.32, 5.8),
+                        _mat("pi_coat"), false)
+        _box(Vector3(0.28, 0.09, 0.28), Vector3(W - 1.35, 1.74, 5.8),
+                        _mat("pi_hatcrown"), false)
+        _collider(Vector3(0.4, 1.8, 0.4), Vector3(W - 1.35, 0.9, 5.8))
 
 
-func _build_dressing() -> void:
-		# the wall dressing: the corkboard over the desk, the clock, a vent
-		_quad(Vector2(3.6, 1.5), Vector3(16.4, 1.75, 1.07), _mat("corkboard"), SOUTH)
-		_quad(Vector2(0.55, 0.55), Vector3(24.6, 2.15, 1.07), _mat("clock"), SOUTH)
-		_quad(Vector2(0.5, 0.5), Vector3(38.94, 2.1, 6.5), _mat("vent"), WEST)
-		for sx in [10.0, 26.0]:                    # the brass sconces
-				_box(Vector3(0.18, 0.32, 0.14), Vector3(sx, 2.0, 1.1), _mat("", SLATE))
-				_quad(Vector2(0.1, 0.16), Vector3(sx, 2.0, 1.18),
-								_mat("", BULB * 0.4, Vector2.ONE, 1.1), SOUTH)
-		# the desk top: the typewriter, the phone, the ashtray, the lamp
-		_box(Vector3(0.52, 0.16, 0.42), Vector3(16.0, 1.03, 6.6), _mat("typewriter"), false)
-		_box(Vector3(0.3, 0.12, 0.26), Vector3(17.4, 1.01, 7.5), _mat("phone"), false)
-		_box(Vector3(0.14, 0.05, 0.14), Vector3(17.9, 0.975, 6.3),
-						_mat("", Color(0.75, 0.72, 0.66)), false)
-		_box(Vector3(0.16, 0.05, 0.16), Vector3(15.5, 0.975, 7.6), _mat("", SLATE), false)
-		_box(Vector3(0.05, 0.34, 0.05), Vector3(15.5, 1.2, 7.6), _mat("", SLATE), false)
-		_box(Vector3(0.2, 0.12, 0.2), Vector3(15.5, 1.4, 7.6),
-						_mat("", SODIUM * 0.4, Vector2.ONE, 1.1), false)
-		_collider(Vector3(0.3, 1.4, 0.3), Vector3(15.5, 1.2, 7.6))
-		# the reading table, the case spot's real body: legs, top, the dealt
-		# folder lying open on it under its marker
-		var wood := _mat("desk", Color.WHITE, Vector2.ONE)
-		_box(Vector3(1.3, 0.08, 1.0), Vector3(16.7, 0.91, 10.5), wood)
-		for leg in [Vector3(16.15, 0.87, 10.1), Vector3(17.25, 0.87, 10.1),
-						Vector3(16.15, 0.87, 10.9), Vector3(17.25, 0.87, 10.9)]:
-				_box(Vector3(0.09, 0.87, 0.09), leg, _mat("", Color(0.16, 0.12, 0.09)))
-		_box(Vector3(0.42, 0.05, 0.31), Vector3(16.85, 0.975, 10.45),
-						_mat("paper", Color(0.72, 0.70, 0.66), Vector2.ONE, 0.3), false)
-		_quad(Vector2(0.5, 0.65), Vector3(17.1, 0.96, 10.75),
-						_mat("news"), Vector3.UP, Vector2i.ZERO, 0.4)
-		# the bar shelf with the bottle row, on the west wall
-		_box(Vector3(0.35, 1.0, 2.2), Vector3(0.85, 0.5, 13.0), _mat("bottles"))
-		for i in 4:
-				var bcol: Color = [GLASS_G, GLASS_B, GLASS_C, GLASS_B][i]
-				_box(Vector3(0.1, 0.26, 0.1), Vector3(0.85, 1.13, 12.3 + i * 0.5),
-								_mat("", bcol), false)
-		# the file wall: the cabinet bank wears a paper load on its top, so
-		# the upgrade spot reads as a working drawer front, not bare boxes
-		for i in 6:
-				_box(Vector3(0.34, 0.14, 0.5),
-								Vector3(3.6 + (i % 2) * 0.7, 2.37, 3.8 + floori(i * 0.5) * 1.9),
-								_mat("paper", Color(0.62, 0.60, 0.57), Vector2.ONE, 0.12), false)
-				_box(Vector3(0.1, 0.24, 0.36),
-								Vector3(3.9 + (i % 2) * 0.75, 2.53, 3.9 + floori(i * 0.5) * 1.9),
-								_mat("", Color(0.44, 0.42, 0.38)), false)
-		# the coat rack by the neon door, still wearing yesterday's coat
-		for part in [[Vector3(0.32, 0.06, 0.32), Vector3(38.3, 0.03, 14.5)],
-						[Vector3(0.07, 1.66, 0.07), Vector3(38.3, 0.86, 14.5)],
-						[Vector3(0.4, 0.05, 0.05), Vector3(38.3, 1.68, 14.5)],
-						[Vector3(0.05, 0.05, 0.4), Vector3(38.3, 1.68, 14.5)]]:
-				_box(part[0], part[1], _mat("", Color(0.2, 0.14, 0.1)), false)
-		_box(Vector3(0.34, 0.55, 0.24), Vector3(38.3, 1.32, 14.5), _mat("", COAT), false)
-		_box(Vector3(0.28, 0.09, 0.28), Vector3(38.3, 1.74, 14.5), _mat("", HAT), false)
-		_collider(Vector3(0.4, 1.8, 0.4), Vector3(38.3, 0.9, 14.5))
-		# the armchair on the rug, facing the desk
-		for part in [[Vector3(0.85, 0.4, 0.85), Vector3(20.7, 0.2, 15.0)],
-						[Vector3(0.25, 0.8, 0.85), Vector3(20.4, 0.6, 15.0)],
-						[Vector3(0.85, 0.55, 0.2), Vector3(20.7, 0.475, 14.675)],
-						[Vector3(0.85, 0.55, 0.2), Vector3(20.7, 0.475, 15.325)]]:
-				_box(part[0], part[1], _mat("", OXBLOOD), false)
-		_collider(Vector3(0.9, 0.9, 0.9), Vector3(20.7, 0.45, 15.0))
-		# the floor lamp beside the chair, iron now, not blue
-		_box(Vector3(0.3, 0.06, 0.3), Vector3(19.2, 0.03, 16.9), _mat("", IRON))
-		_box(Vector3(0.06, 1.5, 0.06), Vector3(19.2, 0.78, 16.9), _mat("", IRON))
-		_box(Vector3(0.26, 0.16, 0.26), Vector3(19.2, 1.63, 16.9),
-						_mat("", SODIUM * 0.4, Vector2.ONE, 1.1), false)
-		_collider(Vector3(0.35, 1.75, 0.35), Vector3(19.2, 0.875, 16.9))
-		# the tired plant in the corner by the door
-		_box(Vector3(0.34, 0.34, 0.34), Vector3(38.2, 0.17, 19.6),
-						_mat("", Color(0.36, 0.2, 0.17)), false)
-		for part in [[Vector3(0.44, 0.34, 0.44), Vector3(38.2, 0.5, 19.6), Color(0.18, 0.25, 0.14)],
-						[Vector3(0.28, 0.3, 0.28), Vector3(38.2, 0.8, 19.6), Color(0.22, 0.28, 0.15)],
-						[Vector3(0.12, 0.24, 0.12), Vector3(38.2, 1.05, 19.6), Color(0.25, 0.3, 0.16)]]:
-				_box(part[0], part[1], _mat("", part[2]), false)
-		_collider(Vector3(0.45, 0.6, 0.45), Vector3(38.2, 0.3, 19.6))
-		# the empties left on the crate, a dropped newspaper
-		for i in 3:
-				var ccol: Color = [GLASS_G, GLASS_B, GLASS_C][i]
-				_box(Vector3(0.09, 0.26, 0.09),
-								Vector3(2.5 + i * 0.25, 1.13, 16.55 + (i % 2) * 0.2),
-								_mat("", ccol), false)
-		_quad(Vector2(0.5, 0.65), Vector3(5.2, 0.03, 18.4),
-						_mat("news"), Vector3.UP, Vector2i.ZERO, 0.5)
-		_build_industrial()
+func _build_lounge() -> void:
+        # the worn rug and the armchair, facing the desk; the floor lamp beside
+        _quad(Vector2(2.6, 1.9), Vector3(20.5, 0.02, 12.6),
+                        _mat("rug", Color.WHITE, Vector2.ONE), Vector3.UP)
+        for part in [[Vector3(0.85, 0.4, 0.85), Vector3(20.5, 0.2, 12.6)],
+                        [Vector3(0.25, 0.8, 0.85), Vector3(20.85, 0.6, 12.6)],
+                        [Vector3(0.85, 0.55, 0.2), Vector3(20.5, 0.475, 12.28)],
+                        [Vector3(0.85, 0.55, 0.2), Vector3(20.5, 0.475, 12.92)]]:
+                _box(part[0], part[1], _mat("", MAROON), false)
+        _collider(Vector3(0.9, 0.9, 0.9), Vector3(20.5, 0.45, 12.6))
+        _box(Vector3(0.3, 0.06, 0.3), Vector3(19.0, 0.03, 14.3), _mat("", IRON_D), false)
+        _box(Vector3(0.06, 1.5, 0.06), Vector3(19.0, 0.78, 14.3), _mat("", IRON_D), false)
+        _box(Vector3(0.26, 0.16, 0.26), Vector3(19.0, 1.63, 14.3),
+                        _mat("", AMBER * 0.9, Vector2.ONE, 1.1), false)
+        _collider(Vector3(0.35, 1.75, 0.35), Vector3(19.0, 0.875, 14.3))
 
 
 func _build_industrial() -> void:
-		# the MACHINE PARTY steel: a turbine bolted to the east wall, conduit
-		# runs over the north wall, drop pipes from the lid. Iron everywhere,
-		# all of it solid, so the camera ray keeps the lens out of the steel.
-		var iron := _mat("", IRON)
-		var iron_l := _mat("", Color(0.2, 0.19, 0.22))
-		# the turbine: housing ring bolted to the wall, the blade quad spins
-		_box(Vector3(0.16, 1.9, 1.9), Vector3(38.9, 1.85, 16.5), iron)
-		_fan = Node3D.new()
-		_fan.position = Vector3(38.8, 1.85, 16.5)
-		add_child(_fan)
-		var blades := MeshInstance3D.new()
-		var bm := PlaneMesh.new()
-		bm.size = Vector2(1.7, 1.7)
-		blades.mesh = bm
-		blades.material_override = _mat("fan", Color.WHITE, Vector2.ONE, 0.28)
-		blades.rotation = Vector3(PI * 0.5, PI * 0.5, 0)
-		_fan.add_child(blades)
-		_box(Vector3(0.2, 0.2, 0.2), Vector3(38.82, 1.85, 16.5), iron_l, false)
-		for jy in [1.0, 2.7]:                     # the housing brackets
-				_box(Vector3(0.1, 0.14, 0.3), Vector3(38.88, jy, 15.7), iron_l)
-				_box(Vector3(0.1, 0.14, 0.3), Vector3(38.88, jy, 17.3), iron_l)
-		# the conduit run over the north wall, three lines with junction boxes
-		for k in 3:
-				_box(Vector3(38.0, 0.08, 0.08),
-								Vector3(20.0, 2.42 + k * 0.11, 1.32), iron)
-		for jx in [8.0, 20.0, 32.0]:
-				_box(Vector3(0.22, 0.34, 0.16), Vector3(jx, 2.58, 1.32), iron_l)
-		# two drop pipes from the lid, with caps
-		for dpx in [12.5, 27.5]:
-				_box(Vector3(0.14, 1.3, 0.14), Vector3(dpx, 2.15, 1.5), iron_l)
-				_box(Vector3(0.2, 0.08, 0.2), Vector3(dpx, 2.76, 1.5), iron)
-		# one long feed pipe along the east wall, over the fan
-		_box(Vector3(0.08, 0.08, 18.0), Vector3(38.68, 2.64, 10.0), iron)
-		for bz in [3.0, 10.0, 17.0]:
-				_box(Vector3(0.16, 0.2, 0.1), Vector3(38.68, 2.64, bz), iron_l)
-
-
-func _build_spots() -> void:
-		for key in SPOT_CELLS:
-				var c: Vector2i = SPOT_CELLS[key]
-				spots[key] = Vector3(c.x + 0.5, 0.0, c.y + 0.5)
+        # the MACHINE PARTY steel: a turbine bolted to the east wall, conduit
+        # runs over the north wall, drop pipes from the lid. Iron everywhere,
+        # all of it solid, so the camera ray keeps the lens out of the steel.
+        var iron := _mat("iron")
+        var iron_d := _mat("", IRON_D)
+        # the turbine: housing ring bolted to the wall, the blade quad spins
+        _box(Vector3(0.16, 1.9, 1.9), Vector3(W - 1.45, 1.85, 12.5), iron)
+        _fan = Node3D.new()
+        _fan.position = Vector3(W - 1.55, 1.85, 12.5)
+        add_child(_fan)
+        var blades := MeshInstance3D.new()
+        var bm := PlaneMesh.new()
+        bm.size = Vector2(1.7, 1.7)
+        blades.mesh = bm
+        blades.material_override = _mat("fan", Color.WHITE, Vector2.ONE, 0.22)
+        blades.rotation = Vector3(PI * 0.5, PI * 0.5, 0)
+        _fan.add_child(blades)
+        _box(Vector3(0.2, 0.2, 0.2), Vector3(W - 1.6, 1.85, 12.5), iron_d, false)
+        for jy in [1.0, 2.7]:              # the housing brackets
+                _box(Vector3(0.1, 0.14, 0.3), Vector3(W - 1.5, jy, 11.7), iron_d)
+                _box(Vector3(0.1, 0.14, 0.3), Vector3(W - 1.5, jy, 13.3), iron_d)
+        # the conduit run over the north wall, three lines with junction boxes
+        for k in 3:
+                _box(Vector3(W - 4.0, 0.08, 0.08),
+                                Vector3(W * 0.5 - 1.0, 2.72 + k * 0.11, 1.32), iron)
+        for jx in [5.0, 14.0, 23.0]:
+                _box(Vector3(0.22, 0.34, 0.16), Vector3(jx, 2.88, 1.32), iron_d)
+        # two drop pipes from the lid, with caps
+        for dpx in [6.5, 21.0]:
+                _box(Vector3(0.14, 0.9, 0.14), Vector3(dpx, WALL_H - 0.45, 1.5), iron_d)
+                _box(Vector3(0.2, 0.08, 0.2), Vector3(dpx, WALL_H - 0.04, 1.5), iron)
+        # one long feed pipe along the east wall, over the fan
+        _box(Vector3(0.08, 0.08, D - 4.0), Vector3(W - 1.6, 2.64, D * 0.5), iron)
+        for bz in [3.0, 8.0, 13.0]:
+                _box(Vector3(0.16, 0.2, 0.1), Vector3(W - 1.6, 2.64, bz), iron_d)
+        # the hanging tube over the center, the room's cold heart
+        _box(Vector3(0.09, 0.42, 0.09), Vector3(14.0, WALL_H - 0.21, 8.0), iron_d, false)
+        _box(Vector3(1.6, 0.08, 0.34), Vector3(14.0, WALL_H - 0.46, 8.0), iron_d, false)
+        _quad(Vector2(1.4, 0.18), Vector3(14.0, WALL_H - 0.5, 8.0),
+                        _mat("", PHOS, Vector2.ONE, 1.35), Vector3.DOWN)
+        # the hanging bulb over the desk, the warm heart
+        _box(Vector3(0.03, 0.55, 0.03), Vector3(14.2, WALL_H - 0.275, 9.5), iron_d, false)
+        _box(Vector3(0.14, 0.18, 0.14), Vector3(14.2, WALL_H - 0.64, 9.5),
+                        _mat("", AMBER * 0.85, Vector2.ONE, 1.3), false)
 
 
 func _build_markers() -> void:
-		# A small sodium tag marks every thing you can use - pinned close to
-		# its prop's body. The tint stays dark so the room's ambient can't
-		# blow it out; the pulse rides the emission, so it glows, not glares.
-		for key in SPOT_MARKS:
-				var mi := _quad(Vector2(0.2, 0.2), SPOT_MARKS[key],
-								_mat("", SODIUM * 0.36, Vector2.ONE, 0.45), SOUTH)
-				_markers.append(mi)
+        # A small amber tag marks every thing you can use - pinned close to its
+        # prop's body; the pulse rides the emission so it glows, not glares
+        for key in MARKS:
+                var mi := _quad(Vector2(0.2, 0.2), MARKS[key][0],
+                                _mat("", AMBER * 0.85, Vector2.ONE, 0.55), MARKS[key][1])
+                _markers.append(mi)
