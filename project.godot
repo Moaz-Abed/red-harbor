@@ -15,7 +15,7 @@ compatibility/default_parent_skeleton_in_mesh_instance_3d=true
 [application]
 
 config/name="Red Harbor"
-config/description="One dealt case at a time, in the Klubnika cast: a walkable office diorama, a pale mannequin PI, dithered tube."
+config/description="One dealt case at a time: a walkable office diorama, a pale mannequin PI, dithered tube."
 run/main_scene="res://scenes/menu.tscn"
 config/features=PackedStringArray("4.7", "GL Compatibility")
 config/icon="res://icon.svg"

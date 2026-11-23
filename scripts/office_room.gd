@@ -1,9 +1,9 @@
 class_name OfficeRoom
 extends Node3D
-## The office as a Klubnika diorama: one cramped concrete slab, green
-## wainscot, a steel door with a lit hatch, a turbine bolted to the east
-## wall, and every surface wearing its grime. The room is a sealed box - four
-## walls and a lid - so no camera angle inside it ever opens on the void.
+## The office diorama: one cramped concrete slab, green wainscot, a steel
+## door with a lit hatch, an extractor fan bolted to the east wall, and every
+## surface wearing its grime. The room is a sealed box - four walls and a
+## lid - so no camera angle inside it ever opens on the void.
 
 const MAT := preload("res://shaders/ps1_mat.gdshader")
 const WALL_H := 3.0
@@ -38,7 +38,7 @@ const MARKS := {
 
 var spots := {}                 # name -> Vector3 (world space)
 var _markers: Array[MeshInstance3D] = []
-var _fan: Node3D                # the turbine on the east wall, spinning
+var _fan: Node3D                # the extractor fan on the east wall, spinning
 
 
 func _ready() -> void:
@@ -64,7 +64,7 @@ func pulse_markers(t: float) -> void:
                 (m.material_override as ShaderMaterial).set_shader_parameter(
                                 "glow", 0.4 + 0.18 * sin(t * 2.6))
         if _fan != null:
-                _fan.rotation.x = t * 0.9        # the turbine turns, slow and heavy
+                _fan.rotation.x = t * 2.2        # the fan turns, slow and heavy
 
 
 # --- the material factory -------------------------------------------------------------
@@ -188,8 +188,8 @@ func _build_shell() -> void:
 
 
 func _build_windows() -> void:
-        # the rain-streaked city, two panes with iron frames
-        # the two panes, the rain-streaked city behind them
+        # the city beyond the glass, two panes with iron frames
+        # the two panes, the city at night behind them
         for wx in [18.5, 22.5]:
                 _quad(Vector2(2.2, 1.6), Vector3(wx, 1.95, 1.02), _mat("", INK))
                 _quad(Vector2(2.0, 1.4), Vector3(wx, 1.95, 1.04),
@@ -341,27 +341,46 @@ func _build_lounge() -> void:
 
 
 func _build_industrial() -> void:
-        # the MACHINE PARTY steel: a turbine bolted to the east wall, conduit
-        # runs over the north wall, drop pipes from the lid. Iron everywhere,
-        # all of it solid, so the camera ray keeps the lens out of the steel.
+        # the industrial steel: an extractor fan bolted to the east wall,
+        # conduit runs over the north wall, drop pipes from the lid. Iron
+        # everywhere, all of it solid, so the camera ray keeps the lens out
+        # of the steel.
         var iron := _mat("iron")
         var iron_d := _mat("", IRON_D)
-        # the turbine: housing ring bolted to the wall, the blade quad spins
+        # the extractor fan: wall plate, square rim, four pitched blades and a
+        # hub on one spinning core, a three-bar grill in front of it all
         _box(Vector3(0.16, 1.9, 1.9), Vector3(W - 1.45, 1.85, 12.5), iron)
+        # the dark throat behind the blades, so the iron reads against it
+        _box(Vector3(0.02, 1.42, 1.42), Vector3(W - 1.54, 1.85, 12.5),
+                        _mat("", Color(0.06, 0.06, 0.07)), false)
+        for part in [[Vector3(0.14, 0.22, 1.9), Vector3(W - 1.56, 2.69, 12.5)],
+                        [Vector3(0.14, 0.22, 1.9), Vector3(W - 1.56, 1.01, 12.5)],
+                        [Vector3(0.14, 1.46, 0.22), Vector3(W - 1.56, 1.85, 11.66)],
+                        [Vector3(0.14, 1.46, 0.22), Vector3(W - 1.56, 1.85, 13.34)]]:
+                _box(part[0], part[1], iron_d)
         _fan = Node3D.new()
-        _fan.position = Vector3(W - 1.55, 1.85, 12.5)
+        _fan.position = Vector3(W - 1.66, 1.85, 12.5)
         add_child(_fan)
-        var blades := MeshInstance3D.new()
-        var bm := PlaneMesh.new()
-        bm.size = Vector2(1.7, 1.7)
-        blades.mesh = bm
-        blades.material_override = _mat("fan", Color.WHITE, Vector2.ONE, 0.22)
-        blades.rotation = Vector3(PI * 0.5, PI * 0.5, 0)
-        _fan.add_child(blades)
-        _box(Vector3(0.2, 0.2, 0.2), Vector3(W - 1.6, 1.85, 12.5), iron_d, false)
-        for jy in [1.0, 2.7]:              # the housing brackets
-                _box(Vector3(0.1, 0.14, 0.3), Vector3(W - 1.5, jy, 11.7), iron_d)
-                _box(Vector3(0.1, 0.14, 0.3), Vector3(W - 1.5, jy, 13.3), iron_d)
+        var hub := MeshInstance3D.new()
+        var hm := BoxMesh.new()
+        hm.size = Vector3(0.2, 0.26, 0.26)
+        hub.mesh = hm
+        hub.material_override = iron_d
+        _fan.add_child(hub)
+        for i in 4:                # the blades, pitched to catch the light
+                var holder := Node3D.new()
+                holder.rotation.x = i * PI * 0.5
+                _fan.add_child(holder)
+                var arm := MeshInstance3D.new()
+                var am := BoxMesh.new()
+                am.size = Vector3(0.06, 0.56, 0.22)
+                arm.mesh = am
+                arm.material_override = _mat("iron", Color.WHITE, Vector2.ONE, 0.3)
+                arm.position = Vector3(0, 0.43, 0)
+                arm.rotation.y = 0.55
+                holder.add_child(arm)
+        for gy in [1.47, 1.85, 2.23]:      # the grill, three bars bridging the rim
+                _box(Vector3(0.03, 0.05, 1.4), Vector3(W - 1.81, gy, 12.5), iron_d, false)
         # the conduit run over the north wall, three lines with junction boxes
         for k in 3:
                 _box(Vector3(W - 4.0, 0.08, 0.08),

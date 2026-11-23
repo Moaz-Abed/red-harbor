@@ -1,8 +1,8 @@
 extends Node3D
-## The PI's office, the whole game for now: a walkable diorama in the
-## Klubnika cast. Read the dealt case at the desk, take the informant's call
-## when the phone rings, read the board, deal the next file at the steel
-## door. The HUD is terminal white on black bars, mono type throughout.
+## The PI's office, the whole game for now: a walkable diorama. Read the
+## dealt case at the desk, take the informant's call when the phone rings,
+## read the board, deal the next file at the steel door. The HUD is terminal
+## white on black bars, mono type throughout.
 
 const PS1_VIEW := preload("res://scripts/comps/ps1_view.gd")
 const ROOM := preload("res://scripts/office_room.gd")
@@ -47,8 +47,6 @@ var _panel: Control
 var _panel_title: Label
 var _panel_body: Label
 var _panel_hint: Label
-var _rain: Array[Vector2] = []
-var _rain_canvas: Control
 var _room: OfficeRoom
 var _view: Ps1View
 var _cam_pos: Vector3
@@ -166,15 +164,6 @@ func _process(delta: float) -> void:
         if is_instance_valid(_pause) and not _pause.open \
                         and Input.mouse_mode != Input.MOUSE_MODE_CAPTURED:
                 Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
-        if not _rain.is_empty() and is_instance_valid(_rain_canvas):
-                for i in _rain.size():
-                        var p := _rain[i]
-                        p.y += 340.0 * delta
-                        p.x -= 40.0 * delta
-                        if p.y > 360.0:
-                                p = Vector2(randf() * 680.0, -12.0)
-                        _rain[i] = p
-                _rain_canvas.queue_redraw()
         _room.pulse_markers(Time.get_ticks_msec() / 1000.0)
         # the subtitle strip fades after its line has had its moment
         if _sub_t < 6.0:
@@ -239,18 +228,10 @@ func _build_hud() -> void:
         root.mouse_filter = Control.MOUSE_FILTER_IGNORE
         _hud.add_child(root)
 
-        _rain_canvas = Control.new()
-        _rain_canvas.set_anchors_preset(Control.PRESET_FULL_RECT)
-        _rain_canvas.mouse_filter = Control.MOUSE_FILTER_IGNORE
-        _rain_canvas.draw.connect(_draw_rain)
-        root.add_child(_rain_canvas)
-        for i in 60:
-                _rain.append(Vector2(randf() * 640.0, randf() * 360.0))
-
         # the terminal bars: black strips, white mono type, like the subs
         _bar(root, Vector2(0, 0), Vector2(640, 20))
         _mlbl(root, Vector2(8, 4), 300, 9, "RED HARBOR - ROOM 407", WHITE)
-        _mlbl(root, Vector2(340, 4), 292, 9, "23:47 - RAIN ON THE GLASS", GREY,
+        _mlbl(root, Vector2(340, 4), 292, 9, "23:47 - FOG ON THE GLASS", GREY,
                         HORIZONTAL_ALIGNMENT_RIGHT)
         _bar(root, Vector2(0, 330), Vector2(640, 30))
         _case_line = _mlbl(root, Vector2(8, 336), 420, 9, "", WHITE)
@@ -354,11 +335,6 @@ func _near_spot() -> String:
         return ""
 
 
-func _draw_rain() -> void:
-        for p in _rain:
-                _rain_canvas.draw_line(p, p + Vector2(-3, 14), Color(0.45, 0.5, 0.55, 0.22), 1.0)
-
-
 # --- panels -------------------------------------------------------------------------
 
 func _build_panel(root: Control) -> void:
@@ -434,7 +410,7 @@ func _phone_text() -> String:
         var call: Dictionary = Ambient.answer_phone()
         if not call.is_empty():
                 return "%s\n\n%s" % [call["line"], call["detail"]]
-        return "NO RING TONIGHT. THE LINE HUMS AND THE DIAL TICKS,\nAND THE HARBOR STAYS ON THE OTHER SIDE OF THE RAIN."
+        return "NO RING TONIGHT. THE LINE HUMS AND THE DIAL TICKS,\nAND THE HARBOR STAYS ON THE OTHER SIDE OF THE GLASS."
 
 
 func _board_text() -> String:

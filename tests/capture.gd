@@ -91,10 +91,6 @@ func _ray_normal(cam: Camera3D, uv: Vector2) -> Vector3:
 
 func _strip(inst: Node, part: String) -> void:
         match part:
-                "rain":
-                        if inst.get("_rain_canvas") != null:
-                                (inst.get("_rain_canvas") as Node).queue_free()
-                                inst.set("_rain", [])
                 "pause":
                         if inst.get("_pause") != null:
                                 (inst.get("_pause") as Node).queue_free()

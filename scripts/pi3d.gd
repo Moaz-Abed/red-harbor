@@ -1,12 +1,11 @@
 class_name Pi
 extends CharacterBody3D
-## The PI, cast the Klubnika way: pale putty skin, one dark maroon coat slab,
-## skinny segmented arms that end in huge mitten fists, and a small grim
-## skull behind wire glasses. The fedora is a steel plate riding the head,
-## the same way the party's cone rides its square plate. Every box face reads
-## its own cell of the texture atlas (Godot's BoxMesh UVs). The stride
-## crossfades with the idle breath, cadence follows real speed, he banks into
-## turns, and the coat tails ride a damped spring.
+## The PI: pale putty skin, one dark maroon coat slab, skinny segmented arms
+## that end in huge mitten fists, and a small grim skull behind wire glasses.
+## The fedora is a steel plate riding the head. Every box face reads its own
+## cell of the texture atlas (Godot's BoxMesh UVs). The stride crossfades
+## with the idle breath, cadence follows real speed, he banks into turns,
+## and the coat tails ride a damped spring.
 ## He walks where the camera looks. No combat, no health - the office is a
 ## place to think, not to fight.
 
@@ -54,9 +53,9 @@ func _ready() -> void:
 
 
 func _build_rig() -> void:
-        # the Klubnika build: pale mannequin parts assembled from boxes, the coat
-        # one wide slab, the fists nearly as big as the arms they hang on, the
-        # face a small pale cell behind wire rims.
+        # pale mannequin parts assembled from boxes, the coat one wide slab,
+        # the fists nearly as big as the arms they hang on, the face a small
+        # pale cell behind wire rims.
         _torso = Node3D.new()
         add_child(_torso)
         _torso.position.y = 0.92

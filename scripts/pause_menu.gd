@@ -50,7 +50,7 @@ func _ready() -> void:
         edge.mouse_filter = Control.MOUSE_FILTER_IGNORE
         _root.add_child(edge)
 
-        _txt(Vector2(200, 128), 240, 13, "PAUSED - THE RAIN WAITS", AMBER)
+        _txt(Vector2(200, 128), 240, 13, "PAUSED - THE FOG WAITS", AMBER)
         for i in ITEMS.size():
                 var l := _txt(Vector2(200, 154 + i * 24), 240, 10, "", WHITE)
                 _labels.append(l)

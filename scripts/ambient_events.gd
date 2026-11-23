@@ -2,7 +2,7 @@ extends Node
 ## AmbientEvents — autoload "Ambient".
 ## Fires timed events inside the office to make it feel alive between cases:
 ## the phone rings (you can answer or let it go), the radio crackles with
-## static and a one-liner, rain gusts at the window, something falls off the
+## static and a one-liner, fog presses at the window, something falls off the
 ## shelves. Each event modifies nothing — it is pure atmosphere. The optional
 ## phone call can carry intel (shown as a subtitle) but never forces you to act.
 ##
@@ -13,7 +13,6 @@ signal phone_ring                   # the phone rings; office connects animation
 signal phone_answered(line: String, detail: String)  # player picked up
 signal phone_ignored                # time ran out without answering
 signal ambient_line(text: String)   # one-liner from the radio or city outside
-signal rain_gust                    # window should rattle / intensify
 signal shelf_drop                   # a small creak and slide sfx
 
 const PHONE_RING_MIN := 25.0        # earliest a call can come in (seconds)
@@ -26,7 +25,7 @@ const AMBIENT_MAX := 30.0
 # it. Pure atmosphere - never a task.
 const CALLS := [
         {"line": "'Don't file the harbor one tonight.'",
-                "detail": "A click, then the rain. The dial tone comes back bored."},
+                "detail": "A click, then the fog. The dial tone comes back bored."},
         {"line": "'The annex stairwell. They reordered the stairs after.'",
                 "detail": "A click. Somewhere in the wire, a door that isn't there."},
         {"line": "'Terminal 4 is asleep. Do not wake the night shift.'",
@@ -34,14 +33,14 @@ const CALLS := [
         {"line": "'Your ninth delegate. He pays in fingerprints.'",
                 "detail": "A click, then static shaped exactly like breathing."},
         {"line": "'The ballroom shoes came back polished. All forty pairs.'",
-                "detail": "Dial tone. The rain in it falls upward."},
+                "detail": "Dial tone. The static in it rolls like a tide."},
         {"line": "'Keep the lamp low tonight. The glass reads rooms.'",
                 "detail": "A click. The line stays open long after it shouldn't."},
 ]
 
 # Radio one-liners and city sounds that filter through the window.
 const RADIO_LINES := [
-        "...AND THE WEATHER SERVICE FORECASTS CONTINUED RAIN THROUGH THE WEEK...",
+        "...AND THE WEATHER SERVICE FORECASTS CONTINUED FOG THROUGH THE WEEK...",
         "...TONIGHT'S PROGRAMME IS BROUGHT TO YOU BY THE MINISTRY OF LIGHT INDUSTRY...",
         "...WE REMIND CITIZENS THAT CURFEW HOURS REMAIN IN EFFECT AFTER 23:00...",
         "...REQUESTS FOR TRAVEL PERMITS MUST BE FILED NO LATER THAN FOURTEEN DAYS IN ADVANCE...",
@@ -56,7 +55,7 @@ const RADIO_LINES := [
 const CITY_LINES := [
         "A TRAM GROANS PAST OUTSIDE.",
         "SOMEWHERE BELOW, A DOOR SLAMS.",
-        "RAIN PICKS UP AGAINST THE GLASS.",
+        "FOG PRESSES UP AGAINST THE GLASS.",
         "THE BUILDING SETTLES. OLD IRON.",
         "A SIREN, FAR AWAY. THEN NOTHING.",
         "FOOTSTEPS IN THE HALL. THEY PASS.",
@@ -149,10 +148,8 @@ func _on_ambient_time() -> void:
         var roll := _rng.randf()
         if roll < 0.40:
                 ambient_line.emit(RADIO_LINES[_rng.randi_range(0, RADIO_LINES.size() - 1)])
-        elif roll < 0.70:
+        elif roll < 0.80:
                 ambient_line.emit(CITY_LINES[_rng.randi_range(0, CITY_LINES.size() - 1)])
-        elif roll < 0.85:
-                rain_gust.emit()
         else:
                 shelf_drop.emit()
         _schedule_ambient()
