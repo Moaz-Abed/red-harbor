@@ -4,10 +4,10 @@ extends Node
 ##
 ## Covered here:
 ##   1. THE DEAL - the case bag never repeats, all six files deal before a refill
-##   2. THE OFFICE - the 3D room builds, the four spots exist, the PI stands in it
-##   3. THE PANELS - case / phone / board open, the door deals the next file
+##   2. THE OFFICE - the 3D room builds, the door spot exists, the PI stands in it
+##   3. THE DOOR - the door deals the next file
 ##   4. THE MENU - the title and the ENTER prompt exist
-##   5. THE AMBIENT - the phone and the event clock run without a scene
+##   5. THE AMBIENT - the event clock runs without a scene
 
 var _fails := 0
 
@@ -51,7 +51,7 @@ func _check_run() -> void:
         _check(not Run.case.is_empty(), "ensure_case keeps the open file")
 
 
-# --- 2-3. the office and the panels -------------------------------------------------------
+# --- 2-3. the office and the door -------------------------------------------------------
 
 func _check_office() -> void:
         var office: Node3D = (load("res://scenes/office.tscn") as PackedScene).instantiate()
@@ -68,8 +68,8 @@ func _check_office() -> void:
         _check(office.get("_yaw") == 0.0 and office.get("_pitch") == 0.22,
                         "the lens starts behind him, orbiting")
         var room: Node3D = office.get("_room")
-        _check(room != null and room.spots.size() == 4,
-                        "the room plants the four spots (case phone board door)")
+        _check(room != null and room.spots.size() == 1,
+                        "the room plants the one spot (the door)")
         var view: Node = office.get("_view")
         var cam: Camera3D = view.get("camera") if view != null else null
         _check(cam != null and cam.get_viewport() is SubViewport, "the tube carries one camera")
@@ -80,18 +80,6 @@ func _check_office() -> void:
                 if c is MeshInstance3D:
                         meshes += 1
         _check(meshes > 30, "the diorama is built (%d meshes)" % meshes)
-
-        office.open_panel("case")
-        _check(office.get("_panel").visible, "the case file opens")
-        _check(office.get("_panel_body").text.contains("DANGER"), "the case text prints the danger")
-        office.close_panel()
-        office.open_panel("board")
-        _check(office.get("_panel_body").text.contains("PINNED"), "the board opens")
-        office.close_panel()
-        office.open_panel("phone")
-        _check(office.get("_panel_body").text.contains("NO RING TONIGHT"),
-                        "the dead line answers honestly")
-        office.close_panel()
 
         var no: String = office.get("_case_line").text
         office.deal_next_case()
@@ -119,9 +107,10 @@ func _check_menu() -> void:
 
 func _check_ambient() -> void:
         Ambient.end_office()
-        _check(not Ambient.is_ringing(), "the phone is quiet after end_office")
+        _check(not Ambient.get("_office_active"), "end_office quiets the room")
         Ambient.begin_office()
-        _check(not Ambient.is_ringing(), "begin_office arms the clock, not the bell")
+        _check(Ambient.get("_office_active"), "begin_office arms the event clock")
+        Ambient.end_office()
 
 
 func _all(node: Node) -> Array:

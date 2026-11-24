@@ -1,8 +1,10 @@
 extends Node3D
-## The PI's office, the whole game for now: a walkable diorama. Read the
-## dealt case at the desk, take the informant's call when the phone rings,
-## read the board, deal the next file at the steel door. The HUD is terminal
-## white on black bars, mono type throughout.
+## The PI's office: a walkable diorama. One interaction for now - deal the
+## next file at the steel door; the HUD keeps the case line. The room stays
+## lean on purpose: the reading panels and the informant's phone are out
+## until the stealth / roguelike / horror / espionage loop replaces them
+## with mechanics that earn their keep. The HUD is terminal white on black
+## bars, mono type throughout.
 
 const PS1_VIEW := preload("res://scripts/comps/ps1_view.gd")
 const ROOM := preload("res://scripts/office_room.gd")
@@ -20,33 +22,24 @@ const CAM_MAX := Vector3(26.7, 2.7, 15.45)
 const LOOK_SENS := 0.0042
 const REACH := 1.7
 
+# the one spot you can use for now, ON the door's body
 const SPOTS := {
-        "case": {"label": "READ THE CASE FILE"},
-        "phone": {"label": "ANSWER THE PHONE"},
-        "board": {"label": "READ THE BOARD"},
         "door": {"label": "DEAL THE NEXT CASE"},
 }
 const WHITE := Color("d8d2c4")
 const GREY := Color("7e7d74")
 const AMBER := Color("d0923c")
 const RED := Color("b04a3a")
-const PANEL_INK := Color("0a0a0a")
-const PANEL_EDGE := Color("3a3a34")
 
 var deal_seed := -1              # >= 0 pins tonight's deal (tests / QA)
 var _player: Pi
 var _pause: CanvasLayer
-var _panel_kind := ""            # "" | case | phone | board
 var _hud: CanvasLayer
 var _case_line: Label
 var _prompt: Label
 var _sub_bar: ColorRect
 var _sub: Label
 var _sub_t := 99.0
-var _panel: Control
-var _panel_title: Label
-var _panel_body: Label
-var _panel_hint: Label
 var _room: OfficeRoom
 var _view: Ps1View
 var _cam_pos: Vector3
@@ -69,7 +62,6 @@ func _ready() -> void:
         add_child(_pause)
         Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
         Ambient.begin_office()
-        Ambient.phone_ring.connect(_on_ring)
         Ambient.ambient_line.connect(_on_line)
 
 
@@ -132,13 +124,7 @@ func _build_world() -> void:
         lamp.light_color = Color(1.0, 0.78, 0.5)
         lamp.light_energy = 0.8
         add_child(lamp)
-        # small pools where the work is: the board and the file bank
-        var board := OmniLight3D.new()
-        board.position = Vector3(9.5, 2.2, 2.2)
-        board.omni_range = 3.0
-        board.light_color = Color(1.0, 0.8, 0.55)
-        board.light_energy = 0.5
-        add_child(board)
+        # a small pool where the work is: the file bank
         var bank := OmniLight3D.new()
         bank.position = Vector3(1.8, 1.7, 4.5)
         bank.omni_range = 4.0
@@ -245,7 +231,6 @@ func _build_hud() -> void:
                         HORIZONTAL_ALIGNMENT_CENTER)
         _prompt = _mlbl(root, Vector2(0, 258), 640, 11, "", AMBER,
                         HORIZONTAL_ALIGNMENT_CENTER)
-        _build_panel(root)
         _add_grain()
 
 
@@ -282,10 +267,6 @@ func _refresh_case_line() -> void:
                 _case_line.text = "CASE %s - %s - %s" % [c["no"], c["title"], c["district"]]
 
 
-func _on_ring() -> void:
-        _flash_sub("THE PHONE IS RINGING.")
-
-
 func _on_line(text: String) -> void:
         _flash_sub(text)
 
@@ -312,18 +293,9 @@ func _add_grain() -> void:
 
 
 func _update_prompt() -> void:
-        if _panel_kind != "":
-                _prompt.text = ""
-                return
         var near := _near_spot()
-        if near == "":
-                _prompt.text = ""
-        elif near == "phone" and not Ambient.is_ringing():
-                _prompt.text = "[E] THE DEAD LINE"
-        else:
-                _prompt.text = "[E] %s" % SPOTS[near]["label"]
-        _prompt.add_theme_color_override("font_color",
-                        RED if near == "door" else AMBER)
+        _prompt.text = "" if near == "" else "[E] %s" % SPOTS[near]["label"]
+        _prompt.add_theme_color_override("font_color", RED)
 
 
 func _near_spot() -> String:
@@ -335,87 +307,7 @@ func _near_spot() -> String:
         return ""
 
 
-# --- panels -------------------------------------------------------------------------
-
-func _build_panel(root: Control) -> void:
-        _panel = Control.new()
-        _panel.set_anchors_preset(Control.PRESET_FULL_RECT)
-        _panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
-        _panel.visible = false
-        root.add_child(_panel)
-        var dim := ColorRect.new()
-        dim.set_anchors_preset(Control.PRESET_FULL_RECT)
-        dim.color = Color(0.0, 0.0, 0.0, 0.72)
-        dim.mouse_filter = Control.MOUSE_FILTER_IGNORE
-        _panel.add_child(dim)
-        var back := _bar(_panel, Vector2(140, 60), Vector2(360, 240))
-        back.color = PANEL_INK
-        var edge := ColorRect.new()
-        edge.position = back.position - Vector2(2, 2)
-        edge.size = back.size + Vector2(4, 4)
-        edge.color = PANEL_EDGE
-        edge.show_behind_parent = true
-        edge.mouse_filter = Control.MOUSE_FILTER_IGNORE
-        _panel.add_child(edge)
-        _panel_title = _mlbl(_panel, Vector2(152, 68), 336, 12, "", WHITE,
-                        HORIZONTAL_ALIGNMENT_CENTER)
-        _panel_body = _mlbl(_panel, Vector2(158, 92), 324, 10, "", WHITE)
-        _panel_body.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-        _panel_body.size = Vector2(324, 176)
-        _panel_hint = _mlbl(_panel, Vector2(152, 272), 336, 8, "", GREY,
-                        HORIZONTAL_ALIGNMENT_CENTER)
-
-
-func open_panel(kind: String) -> void:
-        _panel_kind = kind
-        _panel.visible = true
-        _player.set_physics_process(false)
-        velocity_zero()
-        _refresh_panel()
-
-
-func velocity_zero() -> void:
-        _player.velocity = Vector3.ZERO
-
-
-func close_panel() -> void:
-        _panel_kind = ""
-        _panel.visible = false
-        _player.set_physics_process(true)
-
-
-func _refresh_panel() -> void:
-        match _panel_kind:
-                "case":
-                        _panel_title.text = "CASE %s" % Run.case["no"]
-                        _panel_body.text = _case_text()
-                        _panel_hint.text = "[E] PUT THE FILE DOWN"
-                "phone":
-                        _panel_title.text = "THE PHONE"
-                        _panel_body.text = _phone_text()
-                        _panel_hint.text = "[E] HANG UP"
-                "board":
-                        _panel_title.text = "THE BOARD"
-                        _panel_body.text = _board_text()
-                        _panel_hint.text = "[E] STEP AWAY"
-
-
-func _case_text() -> String:
-        var c: Dictionary = Run.case
-        return "%s - %s\n%s\n\n%s\n\nDANGER %s\nFEE %s" % [
-                c["title"], c["district"], c["building"], c["blurb"], c["danger"], c["fee"]]
-
-
-func _phone_text() -> String:
-        var call: Dictionary = Ambient.answer_phone()
-        if not call.is_empty():
-                return "%s\n\n%s" % [call["line"], call["detail"]]
-        return "NO RING TONIGHT. THE LINE HUMS AND THE DIAL TICKS,\nAND THE HARBOR STAYS ON THE OTHER SIDE OF THE GLASS."
-
-
-func _board_text() -> String:
-        return "PINNED NOTES, MOST OF THEM OLD:\n\n- THE ANNEX STAIRWELL GOES UP. ASK WHY.\n- HARBOR FOG RUNS THICKER THAN THE TIDE TABLES SAY.\n- THE NINTH DELEGATE PAID IN A CURRENCY NOBODY MINTS.\n- CURFEW IS 23:00. THE WALTZ IS NOT.\n\nONE FRESH CARD, RED STRING: DEAL THE NEXT ONE."
-
+# --- the door ------------------------------------------------------------------------
 
 func deal_next_case() -> bool:
         # The steel door: close this file, deal the next one from the bag.
@@ -427,39 +319,21 @@ func deal_next_case() -> bool:
 # --- input --------------------------------------------------------------------------
 
 func _physics_process(_delta: float) -> void:
-        if _panel_kind == "" and _player != null and Input.is_action_just_pressed("interact"):
-                var near := _near_spot()
-                match near:
-                        "case":
-                                open_panel("case")
-                        "phone":
-                                open_panel("phone")
-                        "board":
-                                open_panel("board")
-                        "door":
-                                deal_next_case()
+        if _player != null and Input.is_action_just_pressed("interact") \
+                        and _near_spot() == "door":
+                deal_next_case()
 
 
 func _unhandled_input(event: InputEvent) -> void:
         if event is InputEventMouseMotion:
-                # the free look: yaw spins the compass, pitch lifts the lens;
-                # frozen while a panel holds the room
-                if _panel_kind == "" and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
+                # the free look: yaw spins the compass, pitch lifts the lens
+                if Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
                         _yaw = wrapf(_yaw - event.relative.x * LOOK_SENS, -PI, PI)
                         _pitch = clampf(_pitch + event.relative.y * LOOK_SENS,
                                         CAM_PITCH_MIN, CAM_PITCH_MAX)
                 return
-        # Esc: close the open panel, else hand it to the pause menu.
+        # Esc: hand the room to the pause menu.
         if event.is_action_pressed("pause"):
                 get_viewport().set_input_as_handled()
-                if _panel_kind != "":
-                        close_panel()
-                else:
-                        _pause.open_menu()
-                        Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
-                return
-        if _panel_kind == "":
-                return
-        if event.is_action_pressed("interact"):
-                get_viewport().set_input_as_handled()
-                close_panel()
+                _pause.open_menu()
+                Input.mouse_mode = Input.MOUSE_MODE_VISIBLE

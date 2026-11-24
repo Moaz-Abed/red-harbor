@@ -1,42 +1,18 @@
 extends Node
 ## AmbientEvents — autoload "Ambient".
-## Fires timed events inside the office to make it feel alive between cases:
-## the phone rings (you can answer or let it go), the radio crackles with
-## static and a one-liner, fog presses at the window, something falls off the
-## shelves. Each event modifies nothing — it is pure atmosphere. The optional
-## phone call can carry intel (shown as a subtitle) but never forces you to act.
+## Fires timed events inside the office to make it feel alive between
+## deals: the radio crackles with static and a one-liner, fog presses at
+## the window, something falls off the shelves. Each event modifies
+## nothing — it is pure atmosphere, and none of it asks you to act.
 ##
-## The office scene connects to on_phone_ring and on_event and can play
-## sfx/animation from there; this node only manages timers and state.
+## The office scene connects to ambient_line / shelf_drop and can play
+## sfx from there; this node only manages timers and state.
 
-signal phone_ring                   # the phone rings; office connects animation
-signal phone_answered(line: String, detail: String)  # player picked up
-signal phone_ignored                # time ran out without answering
 signal ambient_line(text: String)   # one-liner from the radio or city outside
 signal shelf_drop                   # a small creak and slide sfx
 
-const PHONE_RING_MIN := 25.0        # earliest a call can come in (seconds)
-const PHONE_RING_MAX := 60.0        # latest
-const RING_WINDOW := 8.0            # how long it rings before going to voicemail
 const AMBIENT_MIN := 10.0
 const AMBIENT_MAX := 30.0
-
-# The informant's calls: the hook line for the panel, the sound that ends
-# it. Pure atmosphere - never a task.
-const CALLS := [
-        {"line": "'Don't file the harbor one tonight.'",
-                "detail": "A click, then the fog. The dial tone comes back bored."},
-        {"line": "'The annex stairwell. They reordered the stairs after.'",
-                "detail": "A click. Somewhere in the wire, a door that isn't there."},
-        {"line": "'Terminal 4 is asleep. Do not wake the night shift.'",
-                "detail": "Dial tone. It hums the third symphony, badly."},
-        {"line": "'Your ninth delegate. He pays in fingerprints.'",
-                "detail": "A click, then static shaped exactly like breathing."},
-        {"line": "'The ballroom shoes came back polished. All forty pairs.'",
-                "detail": "Dial tone. The static in it rolls like a tide."},
-        {"line": "'Keep the lamp low tonight. The glass reads rooms.'",
-                "detail": "A click. The line stays open long after it shouldn't."},
-]
 
 # Radio one-liners and city sounds that filter through the window.
 const RADIO_LINES := [
@@ -64,10 +40,7 @@ const CITY_LINES := [
 ]
 
 var _rng := RandomNumberGenerator.new()
-var _phone_timer: SceneTreeTimer
 var _ambient_timer: SceneTreeTimer
-var _ring_timer: SceneTreeTimer
-var _ringing := false
 var _office_active := false
 
 
@@ -79,57 +52,12 @@ func _ready() -> void:
 
 func begin_office() -> void:
         _office_active = true
-        _schedule_phone()
         _schedule_ambient()
 
 
 func end_office() -> void:
         _office_active = false
-        _ringing = false
         # timers expire naturally; we just stop reacting to them
-
-
-# --- phone ---------------------------------------------------------------------
-
-func _schedule_phone() -> void:
-        if not _office_active:
-                return
-        var wait := _rng.randf_range(PHONE_RING_MIN, PHONE_RING_MAX)
-        _phone_timer = get_tree().create_timer(wait)
-        _phone_timer.timeout.connect(_on_phone_time, CONNECT_ONE_SHOT)
-
-
-func _on_phone_time() -> void:
-        if not _office_active:
-                return
-        _ringing = true
-        phone_ring.emit()
-        _ring_timer = get_tree().create_timer(RING_WINDOW)
-        _ring_timer.timeout.connect(_on_ring_timeout, CONNECT_ONE_SHOT)
-
-
-func _on_ring_timeout() -> void:
-        if not _ringing:
-                return
-        _ringing = false
-        phone_ignored.emit()
-        _schedule_phone()
-
-
-func answer_phone() -> Dictionary:
-        # the office scene calls this when the player walks to the phone spot;
-        # an empty call means nobody rang
-        if not _ringing:
-                return {}
-        _ringing = false
-        var call: Dictionary = CALLS[_rng.randi_range(0, CALLS.size() - 1)]
-        phone_answered.emit(call["line"], call["detail"])
-        _schedule_phone()
-        return call
-
-
-func is_ringing() -> bool:
-        return _ringing
 
 
 # --- ambient one-liners --------------------------------------------------------
