@@ -9,7 +9,7 @@ import math
 import os
 import random
 
-from PIL import Image, ImageDraw, ImageFont
+from PIL import Image, ImageDraw, ImageFilter, ImageFont, ImageSequence
 
 random.seed(47)
 OUT = os.path.join(os.path.dirname(__file__), "..", "assets", "tex")
@@ -20,6 +20,8 @@ FONT_DIR = "/usr/share/fonts/truetype/dejavu"
 PUTTY = (170, 162, 146)
 PUTTY_D = (134, 127, 111)
 BONE = (214, 206, 190)
+KHAKI = (163, 152, 122)     # the office shirt, light khaki
+KHAKI_D = (130, 120, 95)    # khaki shadow: pockets, seams, the collar V
 GREY_G = (98, 106, 90)      # soviet green-grey paint
 GREY_GD = (62, 68, 56)
 CONC = (112, 109, 99)       # warm concrete
@@ -36,9 +38,11 @@ PHOS = (126, 170, 94)
 CITY = (36, 42, 56)
 RUST = (108, 62, 34)
 SLIME = (72, 84, 58)
-HAIR = (34, 29, 24)         # slicked-back hair, near-black brown
-HAIR_D = (22, 19, 16)
-HAIR_L = (56, 48, 40)       # the comb sheen
+HAIR = (128, 118, 102)      # grizzled gray-brown hair, the reference ramp
+HAIR_D = (86, 76, 64)       # the dark streaks, the brows
+HAIR_L = (170, 164, 152)    # the salt-and-pepper sheen
+CHOC = (58, 45, 36)         # high-waist slacks, dark chocolate
+CHOC_D = (40, 31, 25)
 
 BAYER = [
     [0, 8, 2, 10],
@@ -507,45 +511,41 @@ def tex_iron():
 # --- the PI's sheets ---------------------------------------------------------------------
 
 def tex_pi_shirt():
-    # the office shirt: bone-white cloth, a dried-blood tie, black braces
-    # over the shoulders; worn, sweat-pale under the arms
-    SHIRT_D = (176, 168, 152)
-    img, px = canvas(BONE)
-    weave(px, BLACK, 0.10)
+    # the office shirt off the reference: light khaki cloth, tucked, two
+    # chest flap pockets and a button placket down the middle; the tie and
+    # the braces are proud geometry on the rig now, not paint
+    SHIRT_D = (140, 130, 104)
+    img, px = canvas(KHAKI)
+    weave(px, BLACK, 0.08)
 
     def front(put, w, h):
-        for i in range(8):          # the collar V
+        for i in range(8):          # the collar V shadow, the flaps sit proud
             put(20 - i, i, SHIRT_D)
             put(20 - i, i + 1, SHIRT_D)
             put(22 + i, i, SHIRT_D)
             put(22 + i, i + 1, SHIRT_D)
-        for cy in range(5, 13):     # the tie knot
-            for cx in range(17, 26):
-                if abs(cx - 21) < (cy - 3):
-                    put(cx, cy, MAROON)
-        for cy in range(13, 42):    # the tie blade, tapering
-            half = 3 if cy < 34 else 2
-            for cx in range(21 - half, 22 + half):
-                put(cx, cy, MAROON)
-                if cx == 21 - half or cx == 21 + half - 1:
-                    put(cx, cy, MAROON_D)
-        for cy in range(0, h):      # the braces, straight over the shoulders
-            for cx in range(2, 8):
-                put(cx, cy, BLACK)
-            for cx in range(w - 8, w - 2):
-                put(cx, cy, BLACK)
-        for cy in range(2, 7):      # buckle hints on the braces
-            for cx in (4, 5, w - 6, w - 5):
-                put(cx, cy, IRON_D)
+        for cy in range(24, 37):    # the chest flap pockets, inside the braces
+            for cx in range(12, 19):
+                put(cx, cy, KHAKI_D if cy in (24, 36) or cx == 12
+                                else KHAKI)
+            for cx in range(25, 32):
+                put(cx, cy, KHAKI_D if cy in (24, 36) or cx == 31
+                                else KHAKI)
+        for cx in (20, 21, 22):     # the placket, two stitched edges
+            put(cx, 8, SHIRT_D)
+            put(cx, 44, SHIRT_D)
+        for cy in range(8, 44):     # the placket fold
+            put(21, cy, SHIRT_D)
+        for by in (10, 17, 24, 31, 38):   # the buttons, small bone dots
+            put(21, by, BONE)
 
     def back(put, w, h):
-        for cy in range(0, h):      # the braces run down the back too
-            for cx in range(6, 12):
-                put(cx, cy, BLACK)
-            for cx in range(w - 12, w - 6):
-                put(cx, cy, BLACK)
+        for cx in range(4, w - 4):  # the yoke seam across the shoulders
+            put(cx, 9, SHIRT_D)
+        for cy in range(10, h):     # the box pleat down the middle
+            put(w // 2, cy, SHIRT_D)
 
-    fill_cells(img, px, BONE, {"front": front, "back": back})
+    fill_cells(img, px, KHAKI, {"front": front, "back": back})
     stains(px, 5, [PUTTY_D, CONC], 4, 11, 0.22)
     for name in CELL_RECT:
         img_crop_grime(*CELL_RECT[name], px, name != "front")
@@ -554,10 +554,10 @@ def tex_pi_shirt():
 
 
 def tex_pi_sleeve():
-    # the sleeves: plain shirt cloth, no tie, no braces - the painted front
-    # cell of pi_shirt must never leak onto the arm boxes
-    img, px = canvas(BONE)
-    weave(px, BLACK, 0.10)
+    # the sleeves: plain khaki cloth, no pockets - the painted front cell of
+    # pi_shirt must never leak onto the arm boxes
+    img, px = canvas(KHAKI)
+    weave(px, BLACK, 0.08)
     stains(px, 3, [PUTTY_D, CONC], 4, 10, 0.2)
     for name in CELL_RECT:
         img_crop_grime(*CELL_RECT[name], px, False)
@@ -566,11 +566,12 @@ def tex_pi_sleeve():
 
 
 def tex_pi_slacks():
-    img, px = canvas((46, 44, 42))
+    # high-waist slacks in dark chocolate, a crease ironed down the front
+    img, px = canvas(CHOC)
     for y in range(0, 128, 6):         # trouser crease lines
         for x in range(128):
-            mix(px, x, y, BLACK, 0.25)
-    stains(px, 4, [BLACK], 5, 12, 0.3)
+            mix(px, x, y, CHOC_D, 0.45)
+    stains(px, 4, [CHOC_D], 5, 12, 0.3)
     for name in CELL_RECT:
         img_crop_grime(*CELL_RECT[name], px, False)
     noise(px, 9)
@@ -589,18 +590,19 @@ def tex_pi_skin():
 
 
 def tex_pi_face():
-    # the mug from the reference: slicked-back hairline, a furrowed brow over
-    # narrow tired eyes, a chevron mustache drooping past the mouth, three
-    # days of stubble up the jaw - worn, sharp, mid-case
+    # the mug from the reference: grizzled gray-brown hair swept back, a
+    # furrowed brow over narrow tired eyes, a nose shadow, sunken cheeks and
+    # a gray stubble up the jaw. The mustache and the chin beard are real
+    # geometry on the rig now - the paint only carries the shadow under them
     img, px = canvas(PUTTY)
     putf, wf, hf = cell(px, "front")
-    for cx in range(wf):       # the hairline: slicked back, a jagged edge
+    for cx in range(wf):       # the hairline: swept back, a jagged edge
         edge = 7 + (2 if cx % 5 < 2 else 0)
         for cy in range(edge):
-            putf(cx, cy, HAIR)
+            putf(cx, cy, HAIR if cx % 3 else HAIR_D)
     for cx in (0, 1, wf - 2, wf - 1):   # the temples carry hair lower
         for cy in range(7, 22):
-            putf(cx, cy, HAIR)
+            putf(cx, cy, HAIR if cy % 4 else HAIR_L)
     for cx in range(14, 29):   # the worry crease on the forehead
         putf(cx, 13 + (cx % 2), PUTTY_D)
     for side in (0, 1):        # the furrowed brows: inner ends pushed down
@@ -626,33 +628,23 @@ def tex_pi_face():
         for cx in (5, 6, 7, 36, 37, 38):
             if random.random() < 0.5:
                 putf(cx, cy, PUTTY_D)
-    for cx in range(6, 38):    # the mustache: droops past the mouth corners
-        drop = abs(cx - 21) // 4
-        top = 42
-        bot = 47 + drop
-        for cy in range(top, bot):
-            putf(cx, cy, HAIR if cy < bot - 1 else HAIR_D)
-    for cx in range(14, 29):   # a grim line under the mustache
+    for cx in range(14, 29):   # a grim line under the mustache slab
         putf(cx, 52, HAIR_D)
-    for cy in range(50, 64):   # the goatee blotches in at the chin
-        for cx in range(13, 31):
-            if random.random() < 0.6:
-                putf(cx, cy, HAIR_D)
-    for cy in range(44, 64):   # stubble up the jaw
+    for cy in range(44, 64):   # gray stubble up the jaw
         for cx in range(2, 42):
             if random.random() < 0.3:
-                putf(cx, cy, HAIR_D)
+                putf(cx, cy, HAIR_D if random.random() < 0.7 else HAIR)
     for name in CELL_RECT:     # hair on top and back; sides split at the eye line
         x0, y0, x1, y1 = CELL_RECT[name]
         if name == "top":
             for yy in range(y0, y1):
                 for xx in range(x0, x1):
-                    px[xx, yy] = HAIR
+                    px[xx, yy] = HAIR if (xx + yy) % 3 else HAIR_L
         elif name in ("back", "left", "right"):
             split = y0 + 26
             for yy in range(y0, split):
                 for xx in range(x0, x1):
-                    px[xx, yy] = HAIR
+                    px[xx, yy] = HAIR if (xx + yy) % 3 else HAIR_L
             if name == "back":
                 for yy in range(y0 + 4, split, 7):   # comb sheen
                     for xx in range(x0 + 6, x1 - 6, 2):
@@ -690,7 +682,8 @@ def tex_pi_hand():
 
 
 def tex_pi_hair():
-    # slicked-back hair: dark, oiled, comb lines running through the sheen
+    # grizzled gray-brown hair off the reference: salt-and-pepper streaks,
+    # a comb sheen running through the lighter gray
     img, px = canvas(HAIR)
     for y in range(0, 128, 6):
         for x in range(128):
@@ -706,66 +699,115 @@ def tex_pi_hair():
 
 
 def tex_pi_boot():
-    # black leather, worn to grey at the toe; no rust - boots stay black
-    img, px = canvas(BLACK)
+    # dark brown leather, worn to grey at the toe and scuffed at the heel
+    LEATHER = (40, 32, 27)
+    LEATHER_L = (62, 52, 44)
+    LEATHER_D = (22, 17, 14)
+    img, px = canvas(LEATHER)
     for name in CELL_RECT:
         put, w, h = cell(px, name)
         for cy in range(h):
             for cx in range(w):
-                put(cx, cy, BLACK)
+                put(cx, cy, LEATHER)
         for _ in range(3):      # worn highlights
             x, y = random.randint(4, w - 6), random.randint(4, h - 6)
-            blob(px, x, y, random.uniform(2, 4), (48, 46, 44), 0.5)
+            blob(px, x, y, random.uniform(2, 4), LEATHER_L, 0.5)
         for _ in range(2):
             blob(px, random.randint(4, w - 4), random.randint(4, h - 4),
-                 random.uniform(2, 5), (16, 15, 14), 0.5)
+                 random.uniform(2, 5), LEATHER_D, 0.5)
     noise(px, 8)
     save("pi_boot", dither(img))
 
 
 # --- the menu sprites --------------------------------------------------------------------
 
-def grime_text(text, size, color, erode=0.22, offset_shadow=True):
-    # mono type with the ink broken up, a misregistered shadow underneath
-    f = ImageFont.truetype(os.path.join(FONT_DIR, "DejaVuSansMono-Bold.ttf"), size)
-    pad = size // 2
-    tmp = Image.new("L", (10, 10))
-    td = ImageDraw.Draw(tmp)
-    box = td.textbbox((0, 0), text, font=f)
-    w, h = box[2] - box[0] + pad * 2, box[3] - box[1] + pad * 2
-    img = Image.new("RGBA", (w, h), (0, 0, 0, 0))
-    d = ImageDraw.Draw(img)
-    if offset_shadow:
-        d.text((pad + 2, pad - box[1] + 2), text, font=f, fill=(10, 10, 10, 200))
-    d.text((pad, pad - box[1]), text, font=f, fill=color + (255,))
-    px = img.load()
-    for y in range(h):          # the ink erodes
-        for x in range(w):
-            r, g, b, a = px[x, y]
-            if a > 0 and random.random() < erode:
-                px[x, y] = (r, g, b, int(a * random.uniform(0.15, 0.7)))
-    return img
+# the title art off the krackeddevs export (menu_title_src.png): RED
+# HARBOR in bold striped caps, white cores with a fire rim, on near-black.
+# The bake crops to the art, turns its black into alpha so the ember field
+# keeps breathing behind it, and scales it to stage width.
+TITLE_SRC = os.path.join(os.path.dirname(__file__), "menu_title_src.png")
+TITLE_W = 440
+TITLE_FLOOR = 26               # bg pixels under this max-channel die
 
 
 def tex_menu_title():
-    img = grime_text("RED HARBOR", 52, (226, 220, 206), erode=0.20)
-    img.save(os.path.join(SPRITES, "menu_title.png"))
+    src = Image.open(TITLE_SRC).convert("RGB")
+    px = src.load()
+    w, h = src.size
+    minx, miny, maxx, maxy = w, h, 0, 0
+    for y in range(h):
+        for x in range(w):
+            r, g, b = px[x, y]
+            if r + g + b > 72:          # catch the glow, not just the cores
+                minx, miny = min(minx, x), min(miny, y)
+                maxx, maxy = max(maxx, x), max(maxy, y)
+    pad = 24
+    box = (max(0, minx - pad), max(0, miny - pad),
+           min(w, maxx + pad + 1), min(h, maxy + pad + 1))
+    art = src.crop(box)
+
+    img = Image.new("RGBA", art.size, (0, 0, 0, 0))
+    ipx, apx = img.load(), art.load()
+    for yy in range(art.size[1]):
+        for xx in range(art.size[0]):
+            r, g, b = apx[xx, yy]
+            a = max(0, max(r, g, b) - TITLE_FLOOR) * 255 // (255 - TITLE_FLOOR)
+            if a:
+                ipx[xx, yy] = (r, g, b, a)
+    out = img.resize((TITLE_W, round(img.size[1] * TITLE_W / img.size[0])), Image.LANCZOS)
+    out.save(os.path.join(SPRITES, "menu_title.png"))
+    print("menu_title:", out.size)
 
 
+# the prompt off the same fire art: ENTER GAME, white striped caps with
+# the orange rim breathing under it, no chip behind it
 def tex_menu_prompt():
-    f = ImageFont.truetype(os.path.join(FONT_DIR, "DejaVuSansMono-Bold.ttf"), 15)
-    txt = "PRESS ENTER"
-    tmp = Image.new("L", (10, 10))
-    td = ImageDraw.Draw(tmp)
-    box = td.textbbox((0, 0), txt, font=f)
-    w, h = box[2] - box[0] + 24, box[3] - box[1] + 12
-    img = Image.new("RGBA", (w, h), (8, 8, 8, 255))
-    d = ImageDraw.Draw(img)
-    d.text((12, 5 - box[1]), txt, font=f, fill=(226, 220, 206, 255))
+    f = ImageFont.truetype(os.path.join(FONT_DIR, "DejaVuSansMono-Bold.ttf"), 20)
+    txt = "ENTER GAME"
+    w = int(f.getlength(txt)) + 28
+    h = int(20 * 1.7)
+    glow = Image.new("RGBA", (w, h), (0, 0, 0, 0))
+    gd = ImageDraw.Draw(glow)
+    gd.text((14, 3), txt, font=f, fill=(196, 108, 26, 255))
+    glow = glow.filter(ImageFilter.GaussianBlur(3.2))
+    core = Image.new("RGBA", (w, h), (0, 0, 0, 0))
+    cd = ImageDraw.Draw(core)
+    cd.text((14, 3), txt, font=f, fill=(255, 250, 238, 255))
+    cpx = core.load()
+    for yy in range(h):
+        if yy % 3 == 2:                 # the LED stripe the title wears
+            for xx in range(w):
+                r, g, b, a = cpx[xx, yy]
+                if a:
+                    cpx[xx, yy] = (r, g, b, int(a * 0.45))
+    img = Image.alpha_composite(glow, core)
     img.save(os.path.join(SPRITES, "menu_prompt.png"))
+    print("menu_prompt:", img.size)
+
+
+# the ember field off the orbit study (orbit_study.gif): amber sparks and
+# four-point star flashes drifting over near-black, baked from the source
+# gif into a sprite sheet the title screen loops behind the banner. It is
+# drawn additive in-engine, so the sheet's black reads as transparent and
+# the study's own faint scanline banding sits in like phosphor texture.
+ORBIT_SRC = os.path.join(os.path.dirname(__file__), "orbit_study.gif")
+ORBIT_COLS = 8
+ORBIT_SIZE = 320          # frames ship at half res; the menu scales 2x
+
+
+def tex_menu_orbit():
+    src = Image.open(ORBIT_SRC)
+    frames = [f.convert("RGB").resize((ORBIT_SIZE, ORBIT_SIZE), Image.LANCZOS)
+              for f in ImageSequence.Iterator(src)]
+    rows = math.ceil(len(frames) / ORBIT_COLS)
+    sheet = Image.new("RGB", (ORBIT_COLS * ORBIT_SIZE, rows * ORBIT_SIZE), (0, 0, 0))
+    for i, fr in enumerate(frames):
+        sheet.paste(fr, ((i % ORBIT_COLS) * ORBIT_SIZE, (i // ORBIT_COLS) * ORBIT_SIZE))
+    sheet.save(os.path.join(SPRITES, "menu_orbit_sheet.png"))
 
 
 SHEETS = {
+    "menu_orbit": tex_menu_orbit,
     "floor": tex_floor, "wall": tex_wall, "wainscot": tex_wainscot,
     "ceiling": tex_ceiling, "door": tex_door, "window": tex_window,
     "desk": tex_desk, "cabinet": tex_cabinet, "typewriter": tex_typewriter,

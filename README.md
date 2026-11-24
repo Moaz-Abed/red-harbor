@@ -5,9 +5,11 @@ frame upscaled onto the tube, vertex snapping, Gouraud light, dithered color
 and film grain, on a Soviet-run alternate New York.
 
 You are the PI. One dealt case at a time, from the bag. He looks the part:
-slicked-back hair, chevron mustache, three days of stubble, a bone-white
-shirt with a dried-blood tie and black braces, high-waist slacks, and a
-cigarette that never goes out - see `docs/character_reference.jpg`.
+grizzled gray-brown hair swept back with volume on top, a gray chevron
+mustache and a chin beard, a light khaki shirt with a charcoal tie and
+near-black braces over a leather belt and brass buckle, high-waist
+chocolate slacks, a walkie-talkie and a key ring clipped at the back belt,
+and a cigarette that never goes out - see `docs/character_reference.png`.
 
 ## Where the game is right now
 
@@ -48,15 +50,18 @@ scripts/
   run_state.gd      autoload "Run": the case bag and tonight's dealt case
   office.gd         the office scene: world build, HUD, input
   office_room.gd    the PS1 diorama: walls, props, steel, all in boxes
-  pi3d.gd           the PI: a low-poly box rig off the reference art -
-                    slicked-back hair, mustache and stubble painted on the
-                    face cell, shirt + tie + braces slab, huge mitten fists,
+  pi3d.gd           the PI: a low-poly box rig rebuilt off the reference
+                    sheet - khaki shirt with pockets, proud tie/braces/buckle
+                    geometry, the belt kit (walkie + keys) swinging on the
+                    stride, gray mustache and chin beard as real geometry,
                     one ember accent; the stride crossfades with idle, the
                     shirt tail rides a damped spring
   ambient_events.gd autoload "Ambient": radio one-liners, city sounds,
                     shelf drops - pure atmosphere
   pause_menu.gd     the ESC overlay
-  menu.gd           the title screen: spring logo behind a CRT tube
+  menu.gd           the title screen: the ember field off the orbit study
+                    (additive loop) under the fire art title, ENTER GAME in
+                    the same style, behind a CRT tube
   comps/ps1_view.gd the low-res viewport + post chain
 assets_src/
   gen_textures.py   regenerates assets/tex/ (painted + Bayer dithered);

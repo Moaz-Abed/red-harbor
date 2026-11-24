@@ -1,14 +1,20 @@
 extends Control
-## The title screen: just the neon logo and PRESS ENTER, behind a CRT tube.
-## The logo springs in, ENTER punches (flash + glitch + shake), ESC quits.
+## The title screen: the ember field, the fire art title and ENTER GAME,
+## behind a CRT tube. The title springs in, ENTER punches, ESC quits.
 
 const OFFICE := "res://scenes/office.tscn"
 const TITLE_TEX := preload("res://assets/sprites/menu_title.png")
 const PROMPT_TEX := preload("res://assets/sprites/menu_prompt.png")
+const ORBIT_SHEET := preload("res://assets/sprites/menu_orbit_sheet.png")
 const CRT := preload("res://shaders/crt_menu.gdshader")
 
-const TITLE_REST := Vector2(320, 156)
-const PROMPT_REST := Vector2(320, 248)
+const TITLE_REST := Vector2(320, 132)
+const PROMPT_REST := Vector2(320, 268)
+
+# the orbit-study sheet: 8x9 frames of 320, 25 fps, looped additive
+const ORBIT_COLS := 8
+const ORBIT_ROWS := 9
+const ORBIT_FPS := 25.0
 
 
 # A damped spring; stiff / soft is all in the two constants.
@@ -50,6 +56,20 @@ func _ready() -> void:
                 _stage.set_anchors_preset(Control.PRESET_FULL_RECT)
                 _stage.mouse_filter = Control.MOUSE_FILTER_IGNORE
                 add_child(_stage)
+
+                # the ember field: the orbit study loops under the banner,
+                # additive so its black stays the tube's black. Native square,
+                # centered - the crop at top and bottom never shows.
+                var orbit := AnimatedSprite2D.new()
+                orbit.name = "Orbit"
+                orbit.sprite_frames = _orbit_frames()
+                var add_mat := CanvasItemMaterial.new()
+                add_mat.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
+                orbit.material = add_mat
+                orbit.position = Vector2(320, 180)
+                orbit.scale = Vector2(2.0, 2.0)
+                orbit.play("orbit")
+                _stage.add_child(orbit)
 
                 _title = _tex(TITLE_TEX, 1.0)
                 _title.name = "Title"
@@ -100,6 +120,22 @@ func _tex(tex: Texture2D, alpha: float) -> TextureRect:
                 return t
 
 
+func _orbit_frames() -> SpriteFrames:
+                var sf := SpriteFrames.new()
+                sf.add_animation("orbit")
+                sf.set_animation_speed("orbit", ORBIT_FPS)
+                sf.set_animation_loop("orbit", true)
+                var fw := ORBIT_SHEET.get_width() / float(ORBIT_COLS)
+                var fh := ORBIT_SHEET.get_height() / float(ORBIT_ROWS)
+                for row in ORBIT_ROWS:
+                                for col in ORBIT_COLS:
+                                                var at := AtlasTexture.new()
+                                                at.atlas = ORBIT_SHEET
+                                                at.region = Rect2(col * fw, row * fh, fw, fh)
+                                                sf.add_frame("orbit", at)
+                return sf
+
+
 func _process(delta: float) -> void:
                 _t += delta
                 _punch_t += delta
@@ -114,7 +150,7 @@ func _process(delta: float) -> void:
 
                 # prompt: springs in at 0.7s, then breathes
                 var p_in: float = clampf(_prompt_in.value, 0.0, 1.4) if _t > 0.7 else 0.0
-                _prompt.modulate = Color(1.0, 0.87, 0.68)
+                _prompt.modulate = Color(1, 1, 1)
                 _prompt.modulate.a = clampf(p_in, 0.0, 1.0) * (0.35 + 0.65 * abs(sin(_t * 2.2)))
                 _prompt.scale = Vector2.ONE * clampf(p_in, 0.4, 1.05)
                 _prompt.position = PROMPT_REST - _prompt.size * 0.5
