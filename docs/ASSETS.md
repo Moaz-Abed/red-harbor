@@ -32,9 +32,9 @@ For more recorded sounds, filter Freesound by CC0 and always re-check the
 badge on the sound page itself:
 https://freesound.org/search/?q=YOUR+TERM&f=license:%22Creative+Commons+0%22
 
-Search terms that match the office loop: typewriter, rotary phone,
-footsteps concrete, door creak, paper rustle, wall clock, cigarette
-lighter, camera shutter, city hum.
+Search terms that match the office loop: typewriter, footsteps concrete,
+door creak, paper rustle, wall clock, cigarette lighter, camera shutter,
+city hum.
 
 ## Palettes - Lospec (free to download and use)
 
