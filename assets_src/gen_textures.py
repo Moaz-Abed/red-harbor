@@ -4,6 +4,7 @@ The palette is murky - soviet green-grey, putty skin, dried-blood maroon -
 and every sheet takes the same abuse: stain blobs, drips, scratches, edge
 wear, per-pixel noise, then a 5-bit Bayer crunch.
 Run:  python3 assets_src/gen_textures.py
+Pass "name1,name2" to repaint only those sheets (see SHEETS below).
 """
 import math
 import os
@@ -36,6 +37,9 @@ PHOS = (126, 170, 94)
 CITY = (36, 42, 56)
 RUST = (108, 62, 34)
 SLIME = (72, 84, 58)
+HAIR = (34, 29, 24)         # slicked-back hair, near-black brown
+HAIR_D = (22, 19, 16)
+HAIR_L = (56, 48, 40)       # the comb sheen
 
 BAYER = [
     [0, 8, 2, 10],
@@ -223,7 +227,7 @@ def img_crop_grime(x0, y0, x1, y1, px, skip_edges):
         x, y = random.randint(x0, x1 - 2), random.randint(y0, y1 - 1)
         ln = random.randint(3, 12)
         for i in range(ln):
-            if x0 <= x + i < x1 and y0 <= y < y1:
+            if x0 <= x + i < x1 and y0 <= x + i < x1 and y0 <= y < y1:
                 mix(px, x + i, y, BLACK, 0.4 * (1.0 - i / ln))
     if not skip_edges:
         for y in range(y0, y1):
@@ -365,25 +369,6 @@ def tex_window():
     save("window", dither(img))
 
 
-def tex_corkboard():
-    # cork with pinned notes; the notes carry the bureau's scrawl
-    img, px = canvas((104, 80, 52))
-    for _ in range(400):       # cork speckle
-        x, y = random.randint(0, 127), random.randint(0, 127)
-        mix(px, x, y, BLACK if random.random() < 0.5 else BONE, 0.25)
-    notes = [(6, 8, 34, 26), (48, 6, 30, 22), (86, 12, 32, 30),
-             (18, 52, 30, 24), (62, 46, 26, 34), (94, 74, 28, 22)]
-    for (nx, ny, nw, nh) in notes:
-        for yy in range(ny, min(127, ny + nh)):
-            for xx in range(nx, min(127, nx + nw)):
-                px[xx, yy] = BONE
-        scrawl(px, nx + 2, ny + 4, min(3, (nh - 6) // 5 + 1), nw - 5, IRON, 0.5)
-        px[nx + 2, ny + 1] = (160, 50, 40)     # the pin
-    noise(px, 10)
-    edges(px, 0.36)
-    save("corkboard", dither(img))
-
-
 def tex_desk():
     # the heavy top: long scratches, cup rings, burn spots, worn edges
     img, px = canvas(WOOD)
@@ -470,33 +455,6 @@ def tex_typewriter():
     save("typewriter", dither(img))
 
 
-def tex_phone():
-    # the bakelite: dark body, a handset silhouette and a dial on top
-    img, px = canvas(BLACK)
-
-    def top(put, w, h):
-        for xx in range(8, w - 8):     # the handset bar
-            for yy in range(10, 18):
-                put(xx, yy, (40, 38, 36))
-        for yy in range(12, 16):
-            put(10, yy, (52, 50, 46))
-            put(w - 11, yy, (52, 50, 46))
-        cx, cy, r = w // 2, 36, 10     # the dial
-        for i in range(60):
-            a = i / 60 * math.tau
-            put(int(cx + math.cos(a) * r), int(cy + math.sin(a) * r), IRON)
-        for i in range(10):
-            a = i / 10 * math.tau
-            put(int(cx + math.cos(a) * (r - 4)), int(cy + math.sin(a) * (r - 4)),
-                PUTTY_D)
-
-    fill_cells(img, px, BLACK, {"top": top})
-    for name in CELL_RECT:
-        img_crop_grime(*CELL_RECT[name], px, False)
-    noise(px, 8)
-    save("phone", dither(img))
-
-
 def tex_paper():
     img, px = canvas(BONE)
     scrawl(px, 12, 14, 6, 100, IRON, 0.5, gap=8)
@@ -506,37 +464,6 @@ def tex_paper():
     noise(px, 9)
     edges(px, 0.22, band=10)
     save("paper", dither(img))
-
-
-def tex_folder():
-    # the dealt case: tan card, a stamp block, scrawl, the red tie
-    img, px = canvas((122, 92, 58))
-
-    def front(put, w, h):
-        for yy in range(14, 30):       # the stamp
-            for xx in range(8, 34):
-                put(xx, yy, (120, 44, 36))
-        for yy in range(17, 27):
-            for xx in range(11, 31):
-                put(xx, yy, (132, 56, 44))
-
-    for name in CELL_RECT:
-        put, w, h = cell(px, name)
-        for cy in range(h):
-            for cx in range(w):
-                put(cx, cy, (122, 92, 58))
-        if name == "front":
-            front(put, w, h)
-    x0, y0, x1, y1 = CELL_RECT["front"]
-    scrawl(px, x0 + 8, y0 + 36, 3, 26, IRON, 0.6, gap=7)
-    for i in range(40):                # the red string tie across
-        x = x0 + 6 + i
-        if x < x1 - 4:
-            px[x, y0 + 33 - (10 - abs(i - 20)) // 3] = (150, 40, 34)
-    for name in CELL_RECT:
-        img_crop_grime(*CELL_RECT[name], px, False)
-    noise(px, 10)
-    save("folder", dither(img))
 
 
 def tex_vent():
@@ -580,16 +507,63 @@ def tex_iron():
 
 # --- the PI's sheets ---------------------------------------------------------------------
 
-def tex_pi_coat():
-    # dried-blood cloth: weave, stains, darker hem
-    img, px = canvas(MAROON)
-    weave(px, BLACK, 0.14)
-    stains(px, 6, [MAROON_D, BLACK], 5, 14, 0.35)
-    drips(px, 3, BLACK, 0.2, 8, 30)
+def tex_pi_shirt():
+    # the office shirt: bone-white cloth, a dried-blood tie, black braces
+    # over the shoulders; worn, sweat-pale under the arms
+    SHIRT_D = (176, 168, 152)
+    img, px = canvas(BONE)
+    weave(px, BLACK, 0.10)
+
+    def front(put, w, h):
+        for i in range(8):          # the collar V
+            put(20 - i, i, SHIRT_D)
+            put(20 - i, i + 1, SHIRT_D)
+            put(22 + i, i, SHIRT_D)
+            put(22 + i, i + 1, SHIRT_D)
+        for cy in range(5, 13):     # the tie knot
+            for cx in range(17, 26):
+                if abs(cx - 21) < (cy - 3):
+                    put(cx, cy, MAROON)
+        for cy in range(13, 42):    # the tie blade, tapering
+            half = 3 if cy < 34 else 2
+            for cx in range(21 - half, 22 + half):
+                put(cx, cy, MAROON)
+                if cx == 21 - half or cx == 21 + half - 1:
+                    put(cx, cy, MAROON_D)
+        for cy in range(0, h):      # the braces, straight over the shoulders
+            for cx in range(2, 8):
+                put(cx, cy, BLACK)
+            for cx in range(w - 8, w - 2):
+                put(cx, cy, BLACK)
+        for cy in range(2, 7):      # buckle hints on the braces
+            for cx in (4, 5, w - 6, w - 5):
+                put(cx, cy, IRON_D)
+
+    def back(put, w, h):
+        for cy in range(0, h):      # the braces run down the back too
+            for cx in range(6, 12):
+                put(cx, cy, BLACK)
+            for cx in range(w - 12, w - 6):
+                put(cx, cy, BLACK)
+
+    fill_cells(img, px, BONE, {"front": front, "back": back})
+    stains(px, 5, [PUTTY_D, CONC], 4, 11, 0.22)
+    for name in CELL_RECT:
+        img_crop_grime(*CELL_RECT[name], px, name != "front")
+    noise(px, 9)
+    save("pi_shirt", dither(img))
+
+
+def tex_pi_sleeve():
+    # the sleeves: plain shirt cloth, no tie, no braces - the painted front
+    # cell of pi_shirt must never leak onto the arm boxes
+    img, px = canvas(BONE)
+    weave(px, BLACK, 0.10)
+    stains(px, 3, [PUTTY_D, CONC], 4, 10, 0.2)
     for name in CELL_RECT:
         img_crop_grime(*CELL_RECT[name], px, False)
-    noise(px, 10)
-    save("pi_coat", dither(img))
+    noise(px, 9)
+    save("pi_sleeve", dither(img))
 
 
 def tex_pi_slacks():
@@ -616,26 +590,74 @@ def tex_pi_skin():
 
 
 def tex_pi_face():
-    # the mug: eye pits under a brow smudge, a grim mouth, stubble
+    # the mug from the reference: slicked-back hairline, a furrowed brow over
+    # narrow tired eyes, a chevron mustache drooping past the mouth, three
+    # days of stubble up the jaw - worn, sharp, mid-case
     img, px = canvas(PUTTY)
     putf, wf, hf = cell(px, "front")
-    for cx in range(wf):       # brow shadow band
-        for cy in range(16, 22):
-            putf(cx, cy, PUTTY_D)
-    for ex in (13, 30):        # the eye pits
-        for cy in range(24, 32):
-            for dx in range(-2, 3):
-                putf(ex + dx, cy, BLACK if abs(dx) < 2 else IRON_D)
-    for cy in range(26, 40):   # the nose shadow
+    for cx in range(wf):       # the hairline: slicked back, a jagged edge
+        edge = 7 + (2 if cx % 5 < 2 else 0)
+        for cy in range(edge):
+            putf(cx, cy, HAIR)
+    for cx in (0, 1, wf - 2, wf - 1):   # the temples carry hair lower
+        for cy in range(7, 22):
+            putf(cx, cy, HAIR)
+    for cx in range(14, 29):   # the worry crease on the forehead
+        putf(cx, 13 + (cx % 2), PUTTY_D)
+    for side in (0, 1):        # the furrowed brows: inner ends pushed down
+        for i in range(10):
+            bx = (8 + i) if side == 0 else (wf - 9 - i)
+            by = 17 + (i // 3)
+            for t in range(2):
+                putf(bx, by + t, HAIR_D)
+    for ex in (12, 30):        # narrow eye pits, one pale glint each
+        for cy in range(24, 29):
+            for dx in range(-3, 4):
+                putf(ex + dx, cy, BLACK if abs(dx) < 3 else PUTTY_D)
+        putf(ex - 1, 25, BONE)
+        putf(ex + 1, 25, BONE)
+        for dx in range(-4, 5):    # the bags under them
+            putf(ex + dx, 30, PUTTY_D)
+    for cy in range(28, 42):   # the nose shadow, nostrils at the foot
         for dx in range(-1, 2):
             putf(21 + dx, cy, PUTTY_D)
-    for cy in range(40, 43):   # the grim mouth
-        for cx in range(14, 30):
-            putf(cx, cy, BLACK)
-    for cy in range(46, 60):   # stubble noise on the jaw
-        for cx in range(4, 40):
-            if random.random() < 0.35:
+    for cx in (18, 24):
+        putf(cx, 41, HAIR_D)
+    for cy in range(42, 56):   # the cheeks sink a little, worn
+        for cx in (5, 6, 7, 36, 37, 38):
+            if random.random() < 0.5:
                 putf(cx, cy, PUTTY_D)
+    for cx in range(6, 38):    # the mustache: droops past the mouth corners
+        drop = abs(cx - 21) // 4
+        top = 42
+        bot = 47 + drop
+        for cy in range(top, bot):
+            putf(cx, cy, HAIR if cy < bot - 1 else HAIR_D)
+    for cx in range(14, 29):   # a grim line under the mustache
+        putf(cx, 52, HAIR_D)
+    for cy in range(50, 64):   # the goatee blotches in at the chin
+        for cx in range(13, 31):
+            if random.random() < 0.6:
+                putf(cx, cy, HAIR_D)
+    for cy in range(44, 64):   # stubble up the jaw
+        for cx in range(2, 42):
+            if random.random() < 0.3:
+                putf(cx, cy, HAIR_D)
+    for name in CELL_RECT:     # hair on top and back; sides split at the eye line
+        x0, y0, x1, y1 = CELL_RECT[name]
+        if name == "top":
+            for yy in range(y0, y1):
+                for xx in range(x0, x1):
+                    px[xx, yy] = HAIR
+        elif name in ("back", "left", "right"):
+            split = y0 + 26
+            for yy in range(y0, split):
+                for xx in range(x0, x1):
+                    px[xx, yy] = HAIR
+            if name == "back":
+                for yy in range(y0 + 4, split, 7):   # comb sheen
+                    for xx in range(x0 + 6, x1 - 6, 2):
+                        px[xx, yy] = HAIR_L
     for name in CELL_RECT:
         img_crop_grime(*CELL_RECT[name], px, name != "front")
     noise(px, 7)
@@ -668,40 +690,20 @@ def tex_pi_hand():
     save("pi_hand", dither(img))
 
 
-def tex_pi_hatplate():
-    # the plate brim: dark iron-grey steel, smooth except for the corner
-    # rivets and a faint edge wear - metal, not wood
-    img, px = canvas((66, 70, 62))
-
-    def top(put, w, h):
-        for rx, ry in ((5, 5), (w - 6, 5), (5, h - 6), (w - 6, h - 6)):
-            for yy in range(ry - 2, ry + 2):
-                for xx in range(rx - 2, rx + 2):
-                    put(xx, yy, IRON_D)
-        for xx in range(w):
-            put(xx, 0, (48, 52, 46))
-            put(xx, h - 1, (48, 52, 46))
-        for yy in range(h):
-            put(0, yy, (48, 52, 46))
-            put(w - 1, yy, (48, 52, 46))
-
-    plain = {n: (lambda put, w, h: None) for n in
-             ("front", "right", "back", "left", "bottom")}
-    fill_cells(img, px, (66, 70, 62), {"top": top, **plain})
-    stains(px, 2, [IRON_D], 4, 9, 0.2)
-    scratches(px, 4, BLACK, 0.25, ln_max=8)
+def tex_pi_hair():
+    # slicked-back hair: dark, oiled, comb lines running through the sheen
+    img, px = canvas(HAIR)
+    for y in range(0, 128, 6):
+        for x in range(128):
+            if random.random() < 0.45:
+                mix(px, x, y, HAIR_L, 0.5)
+    for y in range(3, 128, 6):
+        for x in range(128):
+            if random.random() < 0.3:
+                mix(px, x, y, HAIR_D, 0.4)
+    stains(px, 2, [HAIR_D], 4, 9, 0.2)
     noise(px, 6)
-    save("pi_hatplate", dither(img))
-
-
-def tex_pi_hatcrown():
-    img, px = canvas((58, 50, 44))
-    weave(px, BLACK, 0.12)
-    stains(px, 3, [BLACK], 4, 10, 0.25)
-    for name in CELL_RECT:
-        img_crop_grime(*CELL_RECT[name], px, False)
-    noise(px, 8)
-    save("pi_hatcrown", dither(img))
+    save("pi_hair", dither(img))
 
 
 def tex_pi_boot():
@@ -764,34 +766,24 @@ def tex_menu_prompt():
     img.save(os.path.join(SPRITES, "menu_prompt.png"))
 
 
+SHEETS = {
+    "floor": tex_floor, "wall": tex_wall, "wainscot": tex_wainscot,
+    "ceiling": tex_ceiling, "door": tex_door, "window": tex_window,
+    "desk": tex_desk, "cabinet": tex_cabinet, "typewriter": tex_typewriter,
+    "paper": tex_paper, "vent": tex_vent, "rug": tex_rug, "iron": tex_iron,
+    "pi_shirt": tex_pi_shirt, "pi_sleeve": tex_pi_sleeve, "pi_slacks": tex_pi_slacks,
+    "pi_skin": tex_pi_skin, "pi_face": tex_pi_face, "pi_hand": tex_pi_hand,
+    "pi_hair": tex_pi_hair, "pi_boot": tex_pi_boot,
+    "menu_title": tex_menu_title, "menu_prompt": tex_menu_prompt,
+}
+
+
 def main():
+    # pass "name1,name2" to repaint only those sheets; a bare run does all
+    import sys
     os.makedirs(OUT, exist_ok=True)
-    tex_floor()
-    tex_wall()
-    tex_wainscot()
-    tex_ceiling()
-    tex_door()
-    tex_window()
-    tex_corkboard()
-    tex_desk()
-    tex_cabinet()
-    tex_typewriter()
-    tex_phone()
-    tex_paper()
-    tex_folder()
-    tex_vent()
-    tex_rug()
-    tex_iron()
-    tex_pi_coat()
-    tex_pi_slacks()
-    tex_pi_skin()
-    tex_pi_face()
-    tex_pi_hand()
-    tex_pi_hatplate()
-    tex_pi_hatcrown()
-    tex_pi_boot()
-    tex_menu_title()
-    tex_menu_prompt()
+    for name in (sys.argv[1].split(",") if len(sys.argv) > 1 else SHEETS):
+        SHEETS[name]()
     print("wrote", len(os.listdir(OUT)), "textures to", OUT)
 
 
