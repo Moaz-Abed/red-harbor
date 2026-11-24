@@ -4,7 +4,6 @@ The palette is murky - soviet green-grey, putty skin, dried-blood maroon -
 and every sheet takes the same abuse: stain blobs, drips, scratches, edge
 wear, per-pixel noise, then a 5-bit Bayer crunch.
 Run:  python3 assets_src/gen_textures.py
-Pass "name1,name2" to repaint only those sheets (see SHEETS below).
 """
 import math
 import os
@@ -227,7 +226,7 @@ def img_crop_grime(x0, y0, x1, y1, px, skip_edges):
         x, y = random.randint(x0, x1 - 2), random.randint(y0, y1 - 1)
         ln = random.randint(3, 12)
         for i in range(ln):
-            if x0 <= x + i < x1 and y0 <= x + i < x1 and y0 <= y < y1:
+            if x0 <= x + i < x1 and y0 <= y < y1:
                 mix(px, x + i, y, BLACK, 0.4 * (1.0 - i / ln))
     if not skip_edges:
         for y in range(y0, y1):
