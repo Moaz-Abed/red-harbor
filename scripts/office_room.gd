@@ -22,17 +22,11 @@ const EAST := Vector3(1, 0, 0)
 const WEST := Vector3(-1, 0, 0)
 const SOUTH := Vector3(0, 0, 1)
 
-# the spots you can use, each ON its prop's body
+# the one spot you can use for now, ON its prop's body
 const SPOT_POINTS := {
-        "case": Vector3(14.45, 0, 9.05),     # the folder on the desk
-        "phone": Vector3(14.85, 0, 8.7),     # the bakelite on the desk
-        "board": Vector3(9.5, 0, 1.5),       # the corkboard on the north wall
         "door": Vector3(26.4, 0, 8.0),       # the steel door, east wall
 }
 const MARKS := {
-        "case": [Vector3(14.45, 1.14, 9.28), Vector3(0, 0, 1)],
-        "phone": [Vector3(14.85, 1.24, 8.48), Vector3(0, 0, 1)],
-        "board": [Vector3(9.5, 1.42, 1.1), Vector3(0, 0, 1)],
         "door": [Vector3(26.85, 1.2, 8.0), Vector3(-1, 0, 0)],
 }
 
@@ -251,15 +245,9 @@ func _build_desk() -> void:
                         Vector3(13.78, 0.23, 8.57), Vector3(14.22, 0.23, 8.57)]:
                 _box(Vector3(0.06, 0.46, 0.06), leg, _mat("", WOOD_D), false)
         _collider(Vector3(0.6, 1.1, 0.6), Vector3(14.0, 0.55, 8.35))
-        # the dealt folder, the case spot's real body
-        _box(Vector3(0.42, 0.05, 0.32), Vector3(14.45, 0.945, 9.05),
-                        _mat("folder", Color.WHITE, Vector2.ONE, 0.06), false)
-        _box(Vector3(0.30, 0.02, 0.40), Vector3(13.62, 0.935, 9.0),
-                        _mat("paper", Color(0.72, 0.70, 0.66), Vector2.ONE), false)
-        # the typewriter and the bakelite
+        # the typewriter, waiting for the report nobody will file
         _box(Vector3(0.5, 0.22, 0.42), Vector3(13.15, 1.0, 8.72), _mat("typewriter"), false)
-        _box(Vector3(0.3, 0.12, 0.26), Vector3(14.85, 0.94, 8.7), _mat("phone"), false)
-        # the desk lamp: iron base, stem, a warm head over the folder
+        # the desk lamp: iron base, stem, a warm head over the desk
         _box(Vector3(0.16, 0.05, 0.16), Vector3(14.7, 0.915, 9.5), _mat("", IRON_D), false)
         _box(Vector3(0.05, 0.36, 0.05), Vector3(14.7, 1.11, 9.5), _mat("", IRON_D), false)
         _box(Vector3(0.22, 0.10, 0.22), Vector3(14.7, 1.33, 9.45), _mat("", IRON_D), false)
@@ -289,11 +277,6 @@ func _build_west_wall() -> void:
                 var bcol: Color = [GLASS_G, GLASS_B][i]
                 _box(Vector3(0.1, 0.3, 0.1), Vector3(1.3, 2.11, 5.3 + i * 0.35),
                                 _mat("", bcol), false)
-        # the corkboard over the north end, the board spot's real body
-        _quad(Vector2(3.2, 1.3), Vector3(9.5, 2.0, 1.07), _mat("corkboard"))
-        for px in [-1.2, 0.0, 1.2]:       # the pinned thickness, an iron edge
-                _box(Vector3(0.9, 0.06, 0.05), Vector3(9.5 + px, 2.0, 1.1),
-                                _mat("", IRON_D), false)
         # the crates in the southwest corner, boards like the floor
         for part in [[Vector3(0.75, 0.75, 0.75), Vector3(1.4, 0.375, 14.55)],
                         [Vector3(0.6, 0.6, 0.6), Vector3(1.45, 1.05, 14.5)]]:
@@ -310,16 +293,15 @@ func _build_west_wall() -> void:
 
 
 func _build_east_wall() -> void:
-        # the coat rack by the door, still wearing yesterday's coat
+        # the coat rack by the door, holding the coat he walks the streets in
+        # - off indoors, over the shirt and the braces; no hat, he owns none
         for part in [[Vector3(0.32, 0.06, 0.32), Vector3(W - 1.35, 0.03, 5.8)],
                         [Vector3(0.07, 1.66, 0.07), Vector3(W - 1.35, 0.86, 5.8)],
                         [Vector3(0.4, 0.05, 0.05), Vector3(W - 1.35, 1.68, 5.8)],
                         [Vector3(0.05, 0.05, 0.4), Vector3(W - 1.35, 1.68, 5.8)]]:
                 _box(part[0], part[1], _mat("iron"))
         _box(Vector3(0.34, 0.55, 0.24), Vector3(W - 1.35, 1.32, 5.8),
-                        _mat("pi_coat"), false)
-        _box(Vector3(0.28, 0.09, 0.28), Vector3(W - 1.35, 1.74, 5.8),
-                        _mat("pi_hatcrown"), false)
+                        _mat("", MAROON), false)
         _collider(Vector3(0.4, 1.8, 0.4), Vector3(W - 1.35, 0.9, 5.8))
 
 
@@ -347,12 +329,13 @@ func _build_industrial() -> void:
         # of the steel.
         var iron := _mat("iron")
         var iron_d := _mat("", IRON_D)
-        # the extractor fan: wall plate, square rim, four pitched blades and a
-        # hub on one spinning core, a three-bar grill in front of it all
+        # the extractor fan: wall plate, square rim, four wide galvanized
+        # blades on one spinning core, a three-bar grill in front. The blades
+        # are the palest iron in the room so the fan reads at tube resolution.
         _box(Vector3(0.16, 1.9, 1.9), Vector3(W - 1.45, 1.85, 12.5), iron)
-        # the dark throat behind the blades, so the iron reads against it
+        # the black throat the blades turn against
         _box(Vector3(0.02, 1.42, 1.42), Vector3(W - 1.54, 1.85, 12.5),
-                        _mat("", Color(0.06, 0.06, 0.07)), false)
+                        _mat("", Color(0.05, 0.05, 0.06)), false)
         for part in [[Vector3(0.14, 0.22, 1.9), Vector3(W - 1.56, 2.69, 12.5)],
                         [Vector3(0.14, 0.22, 1.9), Vector3(W - 1.56, 1.01, 12.5)],
                         [Vector3(0.14, 1.46, 0.22), Vector3(W - 1.56, 1.85, 11.66)],
@@ -361,26 +344,34 @@ func _build_industrial() -> void:
         _fan = Node3D.new()
         _fan.position = Vector3(W - 1.66, 1.85, 12.5)
         add_child(_fan)
+        var steel := _mat("iron", Color(1.0, 1.0, 1.0), Vector2.ONE, 0.3)
         var hub := MeshInstance3D.new()
         var hm := BoxMesh.new()
-        hm.size = Vector3(0.2, 0.26, 0.26)
+        hm.size = Vector3(0.24, 0.3, 0.3)
         hub.mesh = hm
         hub.material_override = iron_d
         _fan.add_child(hub)
-        for i in 4:                # the blades, pitched to catch the light
+        var cap := MeshInstance3D.new()     # the bolt cap, so the core reads
+        var cm := BoxMesh.new()
+        cm.size = Vector3(0.05, 0.14, 0.14)
+        cap.mesh = cm
+        cap.position = Vector3(-0.13, 0, 0)
+        cap.material_override = steel
+        _fan.add_child(cap)
+        for i in 4:                # wide pitched blades, pale on the black throat
                 var holder := Node3D.new()
                 holder.rotation.x = i * PI * 0.5
                 _fan.add_child(holder)
                 var arm := MeshInstance3D.new()
                 var am := BoxMesh.new()
-                am.size = Vector3(0.06, 0.56, 0.22)
+                am.size = Vector3(0.08, 0.46, 0.34)
                 arm.mesh = am
-                arm.material_override = _mat("iron", Color.WHITE, Vector2.ONE, 0.3)
-                arm.position = Vector3(0, 0.43, 0)
-                arm.rotation.y = 0.55
+                arm.material_override = steel
+                arm.position = Vector3(0, 0.4, 0)
+                arm.rotation.y = 0.5
                 holder.add_child(arm)
         for gy in [1.47, 1.85, 2.23]:      # the grill, three bars bridging the rim
-                _box(Vector3(0.03, 0.05, 1.4), Vector3(W - 1.81, gy, 12.5), iron_d, false)
+                _box(Vector3(0.03, 0.07, 1.4), Vector3(W - 1.81, gy, 12.5), iron_d, false)
         # the conduit run over the north wall, three lines with junction boxes
         for k in 3:
                 _box(Vector3(W - 4.0, 0.08, 0.08),
@@ -407,7 +398,7 @@ func _build_industrial() -> void:
 
 
 func _build_markers() -> void:
-        # A small amber tag marks every thing you can use - pinned close to its
+        # A small amber tag marks the thing you can use - pinned close to its
         # prop's body; the pulse rides the emission so it glows, not glares
         for key in MARKS:
                 var mi := _quad(Vector2(0.2, 0.2), MARKS[key][0],

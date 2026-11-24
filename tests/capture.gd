@@ -2,7 +2,7 @@ extends Node
 ## Screenshot harness for visual QA (run under xvfb, never headless).
 ## User args start after the `--` separator and use key=value:
 ##   xvfb-run -s "-screen 0 1280x720x24" godot --path . --resolution 1280x720 \
-##       res://tests/capture.tscn -- --scene=office --panel=case --out=/tmp/shot.png
+##       res://tests/capture.tscn -- --scene=office --out=/tmp/shot.png
 
 const SCENES := {
         "menu": "res://scenes/menu.tscn",
@@ -31,9 +31,6 @@ func _ready() -> void:
         get_tree().root.add_child(inst)
         await get_tree().process_frame
         await get_tree().process_frame
-        if _args.has("panel"):
-                if inst.has_method("open_panel"):
-                        inst.open_panel(_args["panel"])
         if _args.has("pause"):
                 (inst.get("_pause") as Node).open_menu()
                 Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
