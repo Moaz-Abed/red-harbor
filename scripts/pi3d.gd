@@ -1,11 +1,13 @@
 class_name Pi
 extends CharacterBody3D
-## The PI: pale putty skin, one dark maroon coat slab, skinny segmented arms
-## that end in huge mitten fists, and a small grim skull behind wire glasses.
-## The fedora is a steel plate riding the head. Every box face reads its own
-## cell of the texture atlas (Godot's BoxMesh UVs). The stride crossfades
-## with the idle breath, cadence follows real speed, he banks into turns,
-## and the coat tails ride a damped spring.
+## The PI from the reference art (docs/character_reference.jpg): pale putty
+## skin, slicked-back dark hair, a furrowed brow over narrow tired eyes, a
+## chevron mustache and three days of stubble. Bone-white shirt, dried-blood
+## tie, black braces, skinny segmented arms that end in huge mitten fists,
+## high-waist slacks, and one ember accent - the cigarette. Every box face
+## reads its own cell of the texture atlas (Godot's BoxMesh UVs). The stride
+## crossfades with the idle breath, cadence follows real speed, he banks
+## into turns, and the shirt tail rides a damped spring.
 ## He walks where the camera looks. No combat, no health - the office is a
 ## place to think, not to fight.
 
@@ -13,8 +15,6 @@ const MAT := preload("res://shaders/ps1_mat.gdshader")
 const SPEED := 4.6
 const TURN := 10.0
 
-const BAND := Color(0.15, 0.11, 0.08)     # the hat band, dark leather
-const RIM := Color(0.10, 0.095, 0.09)     # wire glasses
 const EMBER := Color(0.85, 0.30, 0.10)
 const CIG := Color(0.90, 0.88, 0.82)
 
@@ -24,8 +24,8 @@ var _walk_t := 0.0              # the stride clock, advances with real speed
 var _blend := 0.0               # 0 = idle pose, 1 = stride pose, crossfaded
 var _lean := 0.0                # the bank into a turn, smoothed
 var _fwd_lean := 0.0            # the lean into the walk, smoothed
-var _tail_a := 0.06             # coat tail spring angle
-var _tail_v := 0.0              # coat tail spring velocity
+var _tail_a := 0.06             # shirt tail spring angle
+var _tail_v := 0.0              # shirt tail spring velocity
 var _torso: Node3D
 var _leg_l: Node3D
 var _leg_r: Node3D
@@ -53,9 +53,9 @@ func _ready() -> void:
 
 
 func _build_rig() -> void:
-        # pale mannequin parts assembled from boxes, the coat one wide slab,
+        # pale mannequin parts assembled from boxes, the shirt one wide slab,
         # the fists nearly as big as the arms they hang on, the face a small
-        # pale cell behind wire rims.
+        # pale cell with the mustache and stubble painted in.
         _torso = Node3D.new()
         add_child(_torso)
         _torso.position.y = 0.92
@@ -65,20 +65,20 @@ func _build_rig() -> void:
                 _box(leg, Vector3(0.15, 0.40, 0.17), Vector3(0, -0.20, 0), "pi_slacks")
                 _box(leg, Vector3(0.13, 0.36, 0.15), Vector3(0, -0.585, 0), "pi_slacks")
                 _box(leg, Vector3(0.16, 0.115, 0.30), Vector3(0, -0.8625, 0.045), "pi_boot")
-        # the hips fill the gap so no slit opens between the coat and the legs
+        # the hips fill the gap so no slit opens between the shirt and the legs
         _box(_torso, Vector3(0.40, 0.20, 0.28), Vector3(0, 0.10, 0), "pi_slacks")
-        _box(_torso, Vector3(0.50, 0.58, 0.32), Vector3(0, 0.48, 0), "pi_coat")
+        _box(_torso, Vector3(0.50, 0.58, 0.32), Vector3(0, 0.48, 0), "pi_shirt")
         _tails = _pivot(_torso, Vector3(0, 0.16, -0.14))
-        _box(_tails, Vector3(0.42, 0.36, 0.09), Vector3(0, -0.18, 0), "pi_coat")
+        _box(_tails, Vector3(0.42, 0.36, 0.09), Vector3(0, -0.18, 0), "pi_shirt")
         _arm_l = _pivot(_torso, Vector3(-0.30, 0.66, 0))
         _arm_r = _pivot(_torso, Vector3(0.30, 0.66, 0))
         for arm in [_arm_l, _arm_r]:
-                _box(arm, Vector3(0.12, 0.34, 0.14), Vector3(0, -0.17, 0), "pi_coat")
+                _box(arm, Vector3(0.12, 0.34, 0.14), Vector3(0, -0.17, 0), "pi_sleeve")
         var elbow := Vector3(0, -0.34, 0)
         _fore_l = _pivot(_arm_l, elbow)
         _fore_r = _pivot(_arm_r, elbow)
         for fore in [_fore_l, _fore_r]:
-                _box(fore, Vector3(0.105, 0.30, 0.125), Vector3(0, -0.15, 0), "pi_coat")
+                _box(fore, Vector3(0.105, 0.30, 0.125), Vector3(0, -0.15, 0), "pi_sleeve")
                 # the mitten: a fist nearly as big as the arm it hangs on
                 _box(fore, Vector3(0.155, 0.17, 0.14), Vector3(0, -0.385, 0.005), "pi_hand")
                 for i in 4:                      # four fingers curling forward
@@ -86,24 +86,18 @@ func _build_rig() -> void:
                         f.rotation.x = -0.45
                         _box(f, Vector3(0.028, 0.085, 0.048), Vector3.ZERO, "pi_hand")
         _head = _pivot(_torso, Vector3(0, 0.78, 0))
-        # the neck plugs the skull into the coat so a glance never opens a gap
+        # the neck plugs the skull into the shirt so a glance never opens a gap
         _box(_head, Vector3(0.14, 0.10, 0.14), Vector3(0, -0.06, 0), "pi_skin")
         _box(_head, Vector3(0.25, 0.26, 0.23), Vector3(0, 0.10, 0), "pi_face")
         for ear in [-0.125, 0.125]:
                 _box(_head, Vector3(0.02, 0.06, 0.05),
                                 Vector3(ear, 0.10, 0.005), "pi_skin")
-        # wire glasses: a bridge strip and two rims, proud of the pale mug
-        _box(_head, Vector3(0.22, 0.018, 0.014), Vector3(0, 0.115, 0.124), "", RIM)
-        _box(_head, Vector3(0.062, 0.05, 0.014), Vector3(-0.058, 0.105, 0.122), "", RIM)
-        _box(_head, Vector3(0.062, 0.05, 0.014), Vector3(0.058, 0.105, 0.122), "", RIM)
-        # the fedora: the identity prop, oversized the way the cone rides its
-        # plate - a steel slab brim, a dark band, a tall felt crown
-        var hat := _pivot(_head, Vector3.ZERO)
-        hat.rotation.x = 0.04
-        _box(hat, Vector3(0.27, 0.14, 0.25), Vector3(0, 0.34, 0), "pi_hatcrown")
-        _box(hat, Vector3(0.29, 0.055, 0.27), Vector3(0, 0.282, 0), "", BAND)
-        _box(hat, Vector3(0.54, 0.05, 0.50), Vector3(0, 0.262, 0),
-                        "pi_hatplate", Color(0.62, 0.62, 0.58))
+        # the hair, slicked back: a crown slab riding the skull and a tail
+        # slab down the nape, proud of the skin so the silhouette reads
+        var hair := _pivot(_head, Vector3.ZERO)
+        hair.rotation.x = 0.03
+        _box(hair, Vector3(0.27, 0.09, 0.25), Vector3(0, 0.265, 0), "pi_hair")
+        _box(hair, Vector3(0.26, 0.17, 0.055), Vector3(0, 0.17, -0.105), "pi_hair")
         # the cigarette: a white rod drooping from the lip corner, an ember that
         # pulses on its own rhythm and flares in the walk's wind
         var cig := _pivot(_head, Vector3(0.06, 0.03, 0.125))
@@ -197,12 +191,13 @@ func _animate(delta: float) -> void:
         _torso.rotation.z = sw * 0.04 * amp + _lean
         _torso.rotation.x = _fwd_lean
         # head: scans the office at rest, steady on the move, counter-rolls a
-        # little so the glasses stay level while the body banks
+        # little so the hair stays level while the body banks
         _head.rotation.y = lerpf(sin(_idle_t * 0.35) * 0.35, sw * 0.05, b)
         _head.rotation.x = lerpf(breathe * 0.012, 0.03 * frac, b) - _fwd_lean * 0.6
         _head.rotation.z = -_torso.rotation.z * 0.55
         # coat tails: a damped spring chasing the stride kick - they overshoot
         # and settle on their own when he starts, stops, or swings around
+        # (the shirt tail keeps the same spring, just lighter cloth)
         var tail_target := 0.06 + breathe * 0.015 * (1.0 - b) + (0.16 + sw * 0.07) * amp
         _tail_v += (tail_target - _tail_a) * 42.0 * delta
         _tail_v *= exp(-7.0 * delta)

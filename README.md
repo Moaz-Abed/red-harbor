@@ -4,13 +4,17 @@ A neo-noir espionage roguelite, rendered the PS1 way: low-poly 3D, a 480x270
 frame upscaled onto the tube, vertex snapping, Gouraud light, dithered color
 and film grain, on a Soviet-run alternate New York.
 
-You are the PI. One dealt case at a time, from the bag.
+You are the PI. One dealt case at a time, from the bag. He looks the part:
+slicked-back hair, chevron mustache, three days of stubble, a bone-white
+shirt with a dried-blood tie and black braces, high-waist slacks, and a
+cigarette that never goes out - see `docs/character_reference.jpg`.
 
 ## Where the game is right now
 
 The slice: **menu -> the office**. The office is the game loop for now -
-read the case file at the desk, take the informant's call when the phone
-rings, read the board, deal the next case at the steel door. Nights (the
+walk the room and deal the next case at the steel door. The reading panels
+and the informant's phone are out until the stealth / roguelike / horror
+loop replaces them with mechanics that earn their keep. Nights (the
 building, the guards, the extraction) come back as PS1 levels once the
 office loop feels right.
 
@@ -21,7 +25,7 @@ office loop feels right.
 | `WASD` / arrows | walk the office |
 | mouse | orbit the lens around the PI |
 | `E` | use the spot you're standing at |
-| `ESC` | close a panel / pause |
+| `ESC` | pause |
 
 ## The look (one shader, one tube)
 
@@ -42,13 +46,14 @@ camera angle inside it ever opens on the void.
 ```
 scripts/
   run_state.gd      autoload "Run": the case bag and tonight's dealt case
-  office.gd         the office scene: world build, HUD, panels, input
+  office.gd         the office scene: world build, HUD, input
   office_room.gd    the PS1 diorama: walls, props, steel, all in boxes
-  pi3d.gd           the PI: a low-poly box rig - a murky slab, a pale
-                    featureless skull behind a bold shades band, an oversized
-                    fedora, huge mitten fists, one ember accent; the stride
-                    crossfades with idle, tails ride a damped spring
-  ambient_events.gd autoload "Ambient": phone rings, radio one-liners,
+  pi3d.gd           the PI: a low-poly box rig off the reference art -
+                    slicked-back hair, mustache and stubble painted on the
+                    face cell, shirt + tie + braces slab, huge mitten fists,
+                    one ember accent; the stride crossfades with idle, the
+                    shirt tail rides a damped spring
+  ambient_events.gd autoload "Ambient": radio one-liners, city sounds,
                     shelf drops - pure atmosphere
   pause_menu.gd     the ESC overlay
   menu.gd           the title screen: spring logo behind a CRT tube
